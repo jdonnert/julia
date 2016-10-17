@@ -1,11 +1,12 @@
-# We define Brewer Colors to use with PGFPlots.
-# the colors are available as numbers: 
-# p = Plots.Linear(x,y, style="Br1")
+# We make the Brewer Colors available to PGFPlots Plot.Linear.
+# the colors are available as Br+number: 
+# p = Plots.Linear(x,y, style="Br4")
 
 module ColorPGF
 
 using ColorBrewer
 using PGFPlots
+using ColorTypes
 
 export Set
 
@@ -25,22 +26,31 @@ const qual_nCol = [9,8,12,8,8,12,9,8]
 
 function Set(name::AbstractString)
 
-	nCol = get_num_colors(name)
+	nCol = get_nCol(name)
 
 	@assert(nCol > 0, "Color Table $name not found")
+
+	println("Setting <$nCol> colors in Brewer Palette '$(name)'.")
 
 	colors = ColorBrewer.palette(name, nCol)
 
 	for i = 1:nCol 
 
 		ct_name = "Br"*string(i)
-		PGFPlots.define_color(ct_name, colors[i,1]) # set nCol LaTeX colors
+
+		r = ColorTypes.red(colors[i,1])
+		g = ColorTypes.green(colors[i,1])
+		b = ColorTypes.blue(colors[i,1])
+
+		rgb = floor(Int16, [r,g,b]*255) # convert FixedPointFloat to Integer
+		
+		PGFPlots.define_color(ct_name, rgb) # set nCol LaTeX colors
 	end
 
 	return
 end
 
-function get_num_colors(name::AbstractString)
+function get_nCol(name::AbstractString)
 
 	tables = cat(1, seq_names, div_names, qual_names)
 	
@@ -50,7 +60,6 @@ function get_num_colors(name::AbstractString)
 
 		if name == tables[i]
 	
-			println("Found <$(nCol[i])> colors in Brewer Palette '$(name)'.")
 
 			return nCol[i]
 
