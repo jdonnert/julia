@@ -1,10 +1,11 @@
 module BetaModel
 
+export Density
 
-function BetaModel(r, rho0, rc, beta)
+function Density(r, rho0, rc, beta)
 
 	rho0 .* (1 + r./rc)^(-3/2 .* beta)
 
-end # beta
+end
 
 end # module
