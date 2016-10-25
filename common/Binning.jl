@@ -2,7 +2,7 @@ module Binning
 
 export BinArr
 
-function BinArr(arr::AbstractArray; pos=0, bin_low=0, log=false, nbins=0)
+function BinArr(arr::AbstractArray; pos=0f64, bin_low=0f64, log=false, nbins=0)
 
 	@assert(ndims(arr) == 1, "\nCan't bin multi-dimensional arrays\n")
 
@@ -48,7 +48,7 @@ function BinArr(arr::AbstractArray; pos=0, bin_low=0, log=false, nbins=0)
 	bin_pos = bin_low[i] + 0.5 * (bin_hig[i] - bin_low[i])
 
 	val = zeros(Float64, nbins)
-	cnt = zeros(Float64, nbins)
+	cnt = zeros(Int64, nbins)
 
 	for i = 1:nbins
 	
