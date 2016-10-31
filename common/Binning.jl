@@ -12,6 +12,8 @@ function BinArr(arr::AbstractArray; pos=0f64, bin_low=0f64, log=false, nbins=0)
 		pos = linspace(1, N, N)
 	end
 
+	nbins = Integer(nbins)
+
 	if nbins > 0
 
 		if log == true
@@ -22,30 +24,30 @@ function BinArr(arr::AbstractArray; pos=0f64, bin_low=0f64, log=false, nbins=0)
 
 			println("$(N-size(good)[1]) of $N elements not in log space")
 			
-			log_bnd = log10([minimum(pos), maximum(pos)])
+			log_bnd = log10([Float64(minimum(pos)), Float64(maximum(pos))])
 
-			bin_low = logspace(log_bnd[1], log_bnd[2], nbins+1)
+			bins = logspace(log_bnd[1], log_bnd[2], nbins+1)
 		else 
 		
-			bnd = [minimum(pos), maximum(pos)]
+			bnd = [Float64(minimum(pos)), Float64(maximum(pos))]
 
-			bin_low = linspace(bnd[1], bnd[2], nbins+1)
+			bins = linspace(bnd[1], bnd[2], nbins+1)
 
 		end
 
 	elseif bin_pos != 0
 	
-		nbins = size(bin_low)-1
+		nbins = length(bins)-1
 
 	else	
 		@assert(false, "Cant bin without nbins or bin_pos")
 	end
 	
-	i = 1:nbins
 
-	bin_hig = bin_low[i+1]
+	bin_hig = bins[2:nbins+1]
+	bin_low = bins[1:nbins]
 
-	bin_pos = bin_low[i] + 0.5 * (bin_hig[i] - bin_low[i])
+	bin_pos = bin_low .+ 0.5 .* (bin_hig .- bin_low)
 
 	val = zeros(Float64, nbins)
 	cnt = zeros(Int64, nbins)
