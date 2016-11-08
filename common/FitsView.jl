@@ -36,13 +36,13 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	pygui(false) # make figure
 	
 	plt[:rc]("font", family="serif")
-	plt[:rc]("font", size="13")
+	plt[:rc]("font", size="12")
 
 	nxFig = 4
 	nyFig = 5
 
 	if movie == false
-		fig = figure(figsize=[nxFig,nyFig], dpi=300, tight_layout=true)
+		fig = figure(figsize=[nxFig,nyFig], dpi=600, tight_layout=true)
 	end
 
 	zrange = [0,0.]
@@ -50,7 +50,7 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	for i = 1:nImg
 
 		if movie == true
-			fig = figure(figsize=[nxFig,nyFig], dpi=300, tight_layout=true)
+			fig = figure(figsize=[nxFig,nyFig], dpi=600, tight_layout=true)
 		end
 
 		extend = find_partition(i, nImg, nxFig, nyFig)
@@ -70,7 +70,8 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		minorticks_on()
 
-		tick_params(width=1, length=5, which="major")
+		tick_params(width=0.5, length=3, which="major")
+		tick_params(width=0.3, length=2, which="minor")
 
 		xticks(Array{Float64}(linspace(0,1024,5)))
 		yticks(Array{Float64}(linspace(0,1024,5)))
@@ -78,7 +79,7 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 		if typeof(input[i]) == String
 
 			img = (FITS(input[i]))[ext]
-		
+			
 			img = img[:,:, slice[i]]
 		else
 
@@ -128,14 +129,16 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		if nImg == 1 && scaleText != " "
 
-			annotate(scaleText, xy=[0;0], xytext=[768, 114], xycoords="data")
+			annotate(scaleText, xy=[0;0], xytext=[768, 114], xycoords="data",
+								size="xx-small")
 		end
 
 		if  annoText[i] != " "
 			
 			text = latexstring("\\rm "*annoText[i])
+			
 			annotate(text,xy=[0;0], 
-					xytext=[1024/20, 1024-124], xycoords="data")
+					xytext=[1024/20, 1024-124], xycoords="data", size="xx-small")
 		end
 
 		make_contours()
@@ -182,7 +185,7 @@ function make_colbar(fig, zrange, colmap; name=" ", log=false, pythonCMaps=false
 
 	cbar = Array{Float64}(1024, N)
 
-	for i = 1:75
+	for i = 1:1024
 		for j = 1:N
 			cbar[i,j] = j
 		end
@@ -235,9 +238,6 @@ function make_colbar(fig, zrange, colmap; name=" ", log=false, pythonCMaps=false
 
 		mTicks = Array{Float64}(mTickVal - zrange[1]) * val2tick
 		
-		for j = 1:nTicks
-			println("$j $(mTickVal[j])")
-		end
 	end
 
 	cax[:set_xticks](mTicks)
@@ -403,14 +403,14 @@ function mycmap(i)
 	path = "/Users/jdonnert/Dev/src/git/julia/common/colmaps/"
 
 	fnames = [
-				"_bgyr_35-85_c73_n256.csv"	,					# 1
-    			"cyclic_grey_15-85_c0_n256.csv",				# 2
-    			"cyclic_grey_15-85_c0_n256_s25.csv",
-			    "cyclic_mrybm_35-75_c68_n256.csv",
-			    "cyclic_mrybm_35-75_c68_n256_s25.csv",
-			    "cyclic_mygbm_30-95_c78_n256.csv",
-			    "cyclic_mygbm_30-95_c78_n256_s25.csv",
-    			"cyclic_wrwbw_40-90_c42_n256.csv",
+	"_bgyr_35-85_c73_n256.csv"	,					# 1
+   	"cyclic_grey_15-85_c0_n256.csv",				# 2
+   	"cyclic_grey_15-85_c0_n256_s25.csv",
+    "cyclic_mrybm_35-75_c68_n256.csv",
+    "cyclic_mrybm_35-75_c68_n256_s25.csv",
+    "cyclic_mygbm_30-95_c78_n256.csv",
+    "cyclic_mygbm_30-95_c78_n256_s25.csv",
+	"cyclic_wrwbw_40-90_c42_n256.csv",
     "cyclic_wrwbw_40-90_c42_n256_s25.csv",
     "diverging-isoluminant_cjm_75_c23_n256.csv",	# 10
     "diverging-isoluminant_cjm_75_c24_n256.csv",
@@ -457,7 +457,7 @@ function mycmap(i)
 
 	fin = path*fnames[i]
 
-	println("Colormap File $fin")
+	#println("Colormap File $fin")
 
 	tmp = readdlm(fin, ',', Float64) / 255	
 	tmp = Array{UFixed8}(tmp)

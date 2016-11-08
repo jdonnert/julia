@@ -26,25 +26,90 @@ const qual_nCol = [9,8,12,8,8,12,9,8]
 
 function Set(name::AbstractString)
 
-	nCol = get_nCol(name)
+	if name != "ALL"
+	
+		nCol = get_nCol(name)
 
-	@assert(nCol > 0, "Color Table $name not found")
+		@assert(nCol > 0, "Color Table $name not found")
 
-	println("Setting <$nCol> colors in Brewer Palette '$(name)'.")
+		println("Setting <$nCol> colors in Brewer Palette '$(name)'.")
 
-	colors = ColorBrewer.palette(name, nCol)
+		colors = ColorBrewer.palette(name, nCol)
+	
+		for i = 1:nCol 
 
-	for i = 1:nCol 
+			ct_name = "Br"*string(i)
 
-		ct_name = "Br"*string(i)
+			r = ColorTypes.red(colors[i,1])
+			g = ColorTypes.green(colors[i,1])
+			b = ColorTypes.blue(colors[i,1])
 
-		r = ColorTypes.red(colors[i,1])
-		g = ColorTypes.green(colors[i,1])
-		b = ColorTypes.blue(colors[i,1])
+			rgb = floor(Int16, [r,g,b]*255) # convert FixedPointFloat to Integer
+			
+			PGFPlots.define_color(ct_name, rgb) # set nCol LaTeX colors
+		end
+	
+	else # set them all!!
 
-		rgb = floor(Int16, [r,g,b]*255) # convert FixedPointFloat to Integer
+		for j=1:length(seq_names)
+
+			nCol = get_nCol(seq_names[j])
+
+			colors = ColorBrewer.palette(seq_names[j], nCol)
+
+			for i=1:nCol
 		
-		PGFPlots.define_color(ct_name, rgb) # set nCol LaTeX colors
+				ct_name = seq_names[j]*string(i)
+
+				r = ColorTypes.red(colors[i,1])
+				g = ColorTypes.green(colors[i,1])
+				b = ColorTypes.blue(colors[i,1])
+
+				rgb = floor(Int16, [r,g,b]*255)
+			
+				PGFPlots.define_color(ct_name, rgb)
+			end
+		end
+
+		for j=1:length(div_names)
+
+			nCol = get_nCol(div_names[j])
+			
+			colors = ColorBrewer.palette(div_names[j], nCol)
+
+			for i=1:nCol
+		
+				ct_name = div_names[j]*string(i)
+		
+				r = ColorTypes.red(colors[i,1])
+				g = ColorTypes.green(colors[i,1])
+				b = ColorTypes.blue(colors[i,1])
+
+				rgb = floor(Int16, [r,g,b]*255)
+			
+				PGFPlots.define_color(ct_name, rgb)
+			end
+		end
+
+		for j=1:length(qual_names)
+
+			nCol = get_nCol(qual_names[j])
+
+			colors = ColorBrewer.palette(qual_names[j], nCol)
+
+			for i=1:nCol
+		
+				ct_name = qual_names[j]*string(i)
+		
+				r = ColorTypes.red(colors[i,1])
+				g = ColorTypes.green(colors[i,1])
+				b = ColorTypes.blue(colors[i,1])
+
+				rgb = floor(Int16, [r,g,b]*255)
+			
+				PGFPlots.define_color(ct_name, rgb)
+			end
+		end
 	end
 
 	return
@@ -60,7 +125,6 @@ function get_nCol(name::AbstractString)
 
 		if name == tables[i]
 	
-
 			return nCol[i]
 
 		end
