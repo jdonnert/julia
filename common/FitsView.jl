@@ -11,8 +11,8 @@ export Fits_View
 
 function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 				   slice=1, zmin=0., zmax=0., unitName="", unitScale=1.,
-				   scaleText=" ", annoText=" ", movie=false, colmap="gray",
-				   pythonCMaps=false, noColBar=false)
+				   scaleText=" ", scaleCol="black", annoText=" ", annoCol="black", 
+				   movie=false, colmap=1,  pythonCMaps=false, noColBar=false)
 	
 	if isa(input, String) # make sure its an array
 		input = [input]
@@ -32,6 +32,8 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	zmax = arrayfy(zmax, nImg)
 	annoText = arrayfy(annoText, nImg)
 	colmap = arrayfy(colmap, nImg)
+	annoCol = arrayfy(annoCol, nImg)
+	scaleCol = arrayfy(annoCol, nImg)
 	
 	pygui(false) # make figure
 	
@@ -40,6 +42,10 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 
 	nxFig = 4
 	nyFig = 5
+
+	if noColBar == true
+		nyFig = nxFig
+	end
 
 	if movie == false
 		fig = figure(figsize=[nxFig,nyFig], dpi=600, tight_layout=true)
@@ -119,31 +125,36 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		if log == true
 
-			imshow(log10(img),interpolation="hanning", cmap=map)
+			imshow(log10(img), interpolation="none", cmap=map)
 		else
 
-			imshow(img,interpolation="hanning", cmap=map)
+			imshow(img, interpolation="none", cmap=map)
 		end
 
 		# annotations 
+		
+		if (i == 1) && scaleText != " "
 
-		if nImg == 1 && scaleText != " "
-
-			annotate(scaleText, xy=[0;0], xytext=[768, 114], xycoords="data",
-								size="xx-small")
+			text = latexstring("\\rm "*annoText[i])
+			x0 = extend[1] + 0.65*extend[3]
+			y0 = extend[2] + 0.05*extend[4]
+			
+			fig[:text](x0, y0, scaleText, color=scaleCol[i], size="xx-small")
 		end
 
 		if  annoText[i] != " "
-			
+
 			text = latexstring("\\rm "*annoText[i])
-			
-			annotate(text,xy=[0;0], 
-					xytext=[1024/20, 1024-124], xycoords="data", size="xx-small")
+			x0 = extend[1] + 0.05*extend[3]
+			y0 = extend[2] + 0.9*extend[4]
+
+			fig[:text](x0, y0, text, color=annoCol[i], size="xx-small")
+
 		end
 
 		make_contours()
 
-		if movie == true && noColBar == false
+		if (movie == true) && (noColBar == false)
 				
 			make_colbar(fig, zrange, colmap[i]; unitName, log)
 
@@ -154,13 +165,13 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 
 	end
 	
-	if movie == false && noColBar == false
+	if (movie == false) && (noColBar == false)
 
 		make_colbar(fig, zrange, colmap[1], name=unitName, log=log,
 			  			pythonCMaps=pythonCMaps)
-
-		savefig(fout)
 	end
+
+	savefig(fout)
 
 	close(fig)
 
@@ -217,22 +228,15 @@ function make_colbar(fig, zrange, colmap; name=" ", log=false, pythonCMaps=false
 		mTicks = Array{Float64}((mTickVal - zrange[1]) * val2tick)
 
 	else
-		println("$(typeof(zrange))")
 		delta = 10.0^Integer(round(log10(zrange[2] - zrange[1])) - 1)
 		
-		println(delta,round(log10(zrange[2] - zrange[1])) - 1)
-
 		minTick = ceil(zrange[1]/delta) * delta
 		maxTick = floor(zrange[2]/delta) * delta
-
-		println("$maxTick,$minTick $delta $(zrange[1]) $(zrange[2])")
 
 		nTicks = Integer((maxTick - minTick) / delta) + 1
 
 		mTickVal = linspace(minTick, maxTick, nTicks)
 		mTickVal = Array{Float64}(mTickVal)
-
-		println("$zrange $delta $minTick $maxTick $mTickVal")
 
 		val2tick = N / (zrange[2] - zrange[1])
 
@@ -392,14 +396,19 @@ function find_partition(i, nImg, nx, ny) #
 
 	dx = ((i-1) % nxy) * xsize
 	dy = ((nxy-1) - floor((i-1)/nxy)) * ysize
+
+	extend = [x0+dx, y0+dy-x0/2, xsize, ysize]
+
+	if i==3 && nImg==3
+
+		extend[1] += 0.5*extend[3]
+	end
 	
-	return [x0+dx, y0+dy-x0/2, xsize, ysize]
+	return extend
 end
 
-function mycmap(i)
+function mycmap(i) # http://peterkovesi.com/projects/colourmaps/index.html
 
-	# http://peterkovesi.com/projects/colourmaps/index.html
-	
 	path = "/Users/jdonnert/Dev/src/git/julia/common/colmaps/"
 
 	fnames = [
