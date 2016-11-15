@@ -2,7 +2,7 @@ module Binning
 
 export BinArr
 
-function BinArr(arr::AbstractArray; pos=0f64, bin_low=0f64, log=false, nbins=0)
+function BinArr(arr::Array; pos=0f64, bin_low=0f64, log=false, nbins=0)
 
 	@assert(ndims(arr) == 1, "\nCan't bin multi-dimensional arrays\n")
 
@@ -49,10 +49,10 @@ function BinArr(arr::AbstractArray; pos=0f64, bin_low=0f64, log=false, nbins=0)
 
 	bin_pos = bin_low .+ 0.5 .* (bin_hig .- bin_low)
 
-	val = zeros(Float64, nbins)
-	cnt = zeros(Int64, nbins)
+	val = SharedArray(Float64, nbins)
+	cnt = SharedArray(Int64, nbins)
 
-	for i = 1:nbins
+	Threads.@threads for i = 1:nbins
 	
 		good = find((pos .>= bin_low[i]) &  (pos .<= bin_hig[i]))
 
@@ -65,7 +65,7 @@ function BinArr(arr::AbstractArray; pos=0f64, bin_low=0f64, log=false, nbins=0)
 
 	end
 
-	return val, bin_pos, cnt
+	return Array(val), bin_pos, Array(cnt)
 end
 
 end # module

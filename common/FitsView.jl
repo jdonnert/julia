@@ -12,7 +12,8 @@ export Fits_View
 function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 				   slice=1, zmin=0., zmax=0., unitName="", unitScale=1.,
 				   scaleText=" ", scaleCol="black", annoText=" ", annoCol="black", 
-				   movie=false, colmap=1,  pythonCMaps=false, noColBar=false)
+				   movie=false, colmap=1,  pythonCMaps=false, noColBar=false,
+				   frameCol="black")
 	
 	if isa(input, String) # make sure its an array
 		input = [input]
@@ -30,10 +31,12 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	unitScale = arrayfy(unitScale, nImg)
 	zmin = arrayfy(zmin, nImg)
 	zmax = arrayfy(zmax, nImg)
+	log = arrayfy(log, nImg)
 	annoText = arrayfy(annoText, nImg)
 	colmap = arrayfy(colmap, nImg)
 	annoCol = arrayfy(annoCol, nImg)
 	scaleCol = arrayfy(annoCol, nImg)
+	frameCol = arrayfy(frameCol, nImg)
 	
 	pygui(false) # make figure
 	
@@ -43,15 +46,26 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	nxFig = 4
 	nyFig = 5
 
-	if noColBar == true
+	if nImg == 2
+
+		nxFig = 4
+		nyFig = 2
+
+		if noColBar == false
+	
+			nyFig *= 1.15
+		end
+
+	elseif noColBar == true
+
 		nyFig = nxFig
 	end
 
-	if movie == false
+	zrange = [0,0.]
+
+	if movie == false 
 		fig = figure(figsize=[nxFig,nyFig], dpi=600, tight_layout=true)
 	end
-
-	zrange = [0,0.]
 
 	for i = 1:nImg
 
@@ -74,10 +88,15 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 		ax[:set_xticklabels](" ")
 		ax[:set_yticklabels](" ")
 
+		ax[:spines]["top"][:set_color](frameCol[i])
+		ax[:spines]["bottom"][:set_color](frameCol[i])
+		ax[:spines]["right"][:set_color](frameCol[i])
+		ax[:spines]["left"][:set_color](frameCol[i])
+
 		minorticks_on()
 
-		tick_params(width=0.5, length=3, which="major")
-		tick_params(width=0.3, length=2, which="minor")
+		tick_params(width=0.5, length=3, which="major", colors=frameCol[i])
+		tick_params(width=0.3, length=2, which="minor", colors=frameCol[i])
 
 		xticks(Array{Float64}(linspace(0,1024,5)))
 		yticks(Array{Float64}(linspace(0,1024,5)))
@@ -102,6 +121,12 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 			zmax[i] = maximum(img)
 			
 			println("zrange of image <$i> = $(zmin[i]), $(zmax[i])")
+
+			if log[i] == true && zmin[i] == 0
+
+				println("zmin == 0 with log scale !")
+			end
+
 		end
 
 		zrange[1] = zmin[i]
@@ -123,7 +148,7 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 		end
 			
 
-		if log == true
+		if log[i] == true
 
 			imshow(log10(img), interpolation="none", cmap=map)
 		else
@@ -156,7 +181,7 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		if (movie == true) && (noColBar == false)
 				
-			make_colbar(fig, zrange, colmap[i]; unitName, log)
+			make_colbar(fig, zrange, colmap[i]; unitName, log=log[i])
 
 			savefig(fout*"_$i.jpg")
 
@@ -167,7 +192,7 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	
 	if (movie == false) && (noColBar == false)
 
-		make_colbar(fig, zrange, colmap[1], name=unitName, log=log,
+		make_colbar(fig, zrange, colmap[1], name=unitName, log=log[1],
 			  			pythonCMaps=pythonCMaps)
 	end
 
@@ -367,18 +392,16 @@ function arrayfy(input, nImg)
 		input = [input]
 	end
 
+	output = input
+
 	if length(input) != nImg
 	
-		output = input
-
 		for i=2:nImg
 			output = [output; input]
 		end
 
 	elseif ! isa(input, Array)
 		output = [input]
-	else
-		output = input
 	end
 
 	return output
@@ -400,7 +423,6 @@ function find_partition(i, nImg, nx, ny) #
 	extend = [x0+dx, y0+dy-x0/2, xsize, ysize]
 
 	if i==3 && nImg==3
-
 		extend[1] += 0.5*extend[3]
 	end
 	
@@ -410,7 +432,7 @@ end
 function mycmap(i) # http://peterkovesi.com/projects/colourmaps/index.html
 
 	path = "/Users/jdonnert/Dev/src/git/julia/common/colmaps/"
-
+	# as long as the package is broken, we are using csv tables.
 	fnames = [
 	"_bgyr_35-85_c73_n256.csv"	,					# 1
    	"cyclic_grey_15-85_c0_n256.csv",				# 2
