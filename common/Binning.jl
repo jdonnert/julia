@@ -2,13 +2,13 @@ module Binning
 
 export BinArr
 
-function BinArr(arr::Array; pos=0f64, bin_low=0f64, log=false, nbins=0)
+function BinArr(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 
 	@assert(ndims(arr) == 1, "\nCan't bin multi-dimensional arrays\n")
 
 	N = (size(arr))[1]
 
-	if pos == 0
+	if pos == -1
 		pos = linspace(1, N, N)
 	end
 
@@ -35,15 +35,14 @@ function BinArr(arr::Array; pos=0f64, bin_low=0f64, log=false, nbins=0)
 
 		end
 
-	elseif bin_pos != 0
+	elseif bin_low > 0
 	
-		nbins = length(bins)-1
+		nbins = length(bin_low)-1
 
 	else	
 		@assert(false, "Cant bin without nbins or bin_pos")
 	end
 	
-
 	bin_hig = bins[2:nbins+1]
 	bin_low = bins[1:nbins]
 
