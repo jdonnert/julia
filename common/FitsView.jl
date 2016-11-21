@@ -120,14 +120,14 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 			zmin[i] = minimum(img)
 			zmax[i] = maximum(img)
 			
-			println("zrange of image <$i> = $(zmin[i]), $(zmax[i])")
-
 			if log[i] == true && zmin[i] == 0
 
 				println("zmin == 0 with log scale !")
 			end
 
 		end
+
+		println("zrange of image <$i> = $(zmin[i]), $(zmax[i])")
 
 		zrange[1] = zmin[i]
 		zrange[2] = zmax[i]
@@ -415,12 +415,15 @@ function find_partition(i, nImg, nx, ny) #
 	nxy = ceil(sqrt(nImg))
 
 	xsize = (1-2*x0)/nxy # square images
-	ysize = (1-y0)/nxy # square images
+	ysize = xsize
 
-	dx = ((i-1) % nxy) * xsize
-	dy = ((nxy-1) - floor((i-1)/nxy)) * ysize
+	ix = (i-1) % nxy
+	iy = (nxy-1) - floor((i-1)/nxy)
 
-	extend = [x0+dx, y0+dy-x0/2, xsize, ysize]
+	dx = ix * xsize
+	dy = iy * ysize
+
+	extend = [x0+dx, y0+dy+x0/2, xsize, ysize]
 
 	if i==3 && nImg==3
 		extend[1] += 0.5*extend[3]
