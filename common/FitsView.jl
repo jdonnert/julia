@@ -1,19 +1,28 @@
-module FitsView
+module FitsView # plot an image and do a lot of stuff with it using a single inter
+				# face. Hacking is for the brave, even though I am trying to keep
+				# it simple.
 
 using FITSIO
 using Colors
 using ColorTypes
 using FixedPointNumbers
 using PyPlot
+using Images
 #using PerceptualColourMaps
 
 export Fits_View
 
-function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
-				   slice=1, zmin=0., zmax=0., unitName="", unitScale=1.,
-				   scaleText=" ", scaleCol="black", annoText=" ", annoCol="black", 
-				   movie=false, colmap=1,  pythonCMaps=false, noColBar=false,
-				   frameCol="black")
+function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
+				   		  	slice=1, zmin=0., zmax=0., movie=false, 
+					   	  	colmap=1, pythonCMaps=false, noColBar=false,
+				   			unitName="", scaleFac=1.,
+				   			scaleText=" ", scaleCol="black", 
+				   			annoText=" ", annoCol="black", 
+							contFin="", contZmin=-1, contZmax=-1, contNLevels=5,
+							contLevels=[0,0], contCol="white", contLog=false, 
+							contFac=1, contCharSize="xx-small", contThick=3,
+							contSlice=1, contSmooth=0, contLabels="",
+				   			frameCol="black", txtSize="xx-small")
 	
 	if isa(input, String) # make sure its an array
 		input = [input]
@@ -26,56 +35,66 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	end
 
 	println("Found $nImg images")
-	
-	slice = arrayfy(slice, nImg) # make parameters indexable by nImg
-	unitScale = arrayfy(unitScale, nImg)
-	zmin = arrayfy(zmin, nImg)
-	zmax = arrayfy(zmax, nImg)
-	log = arrayfy(log, nImg)
-	annoText = arrayfy(annoText, nImg)
-	colmap = arrayfy(colmap, nImg)
-	annoCol = arrayfy(annoCol, nImg)
-	scaleCol = arrayfy(annoCol, nImg)
+
+	# make parameters indexable by nImg
+
+	slice = arrayfy(slice, nImg) 				# slice of img cube
+	scaleFac = arrayfy(scaleFac, nImg)			# scale factor for img
+	zmin = arrayfy(zmin, nImg)					# minimum in colbar
+	zmax = arrayfy(zmax, nImg)					# maximum in colbar
+	log = arrayfy(log, nImg)					# log scale in colbar
+	ext = arrayfy(ext, nImg)					# extension of FITS file
+	annoText = arrayfy(annoText, nImg)			# text for top left corner
+	colmap = arrayfy(colmap, nImg)				# color map (number)
+	annoCol = arrayfy(annoCol, nImg)			# color of annotation text
+	scaleCol = arrayfy(annoCol, nImg)			# color of scale text
+	contFin = arrayfy(contFin, nImg)			# contour input
+	contZmin = arrayfy(contZmin, nImg)			
+	contZmax = arrayfy(contZmax, nImg)
+	contNLevels = arrayfy(contNLevels, nImg)
+	contLevels = arrayfy(contLevels, nImg)
+	contCol = arrayfy(contCol, nImg)
+	contLog = arrayfy(contLog, nImg)
+	contThick = arrayfy(contThick, nImg)
+	contFac = arrayfy(contFac, nImg)
+	contSlice = arrayfy(contSlice, nImg)
+	contCharSize = arrayfy(contCharSize, nImg)	
+	contSmooth = arrayfy(contSmooth, nImg)		# fwhm of gaussian
+	contLabels = arrayfy(contLabels, nImg)
 	frameCol = arrayfy(frameCol, nImg)
 	
-	pygui(false) # make figure
-	
-	plt[:rc]("font", family="serif")
-	plt[:rc]("font", size="12")
+	pygui(false)
 
-	nxFig = 4
-	nyFig = 5
+	plt[:rc]("font", family="serif")
+	plt[:rc]("font", size="13")
+
+	nxFig = 4.0 # figure size in inches (why god not SI/cm ??)
+	nyFig = 4.0
 
 	if nImg == 2
+		nxFig = 4.0
+		nyFig = 2.0
+	end
 
-		nxFig = 4
-		nyFig = 2
-
-		if noColBar == false
-	
-			nyFig *= 1.15
-		end
-
-	elseif noColBar == true
-
-		nyFig = nxFig
+	if noColBar == false
+		nyFig *= 1.25 # color bar adds 25% space on the bottom
 	end
 
 	zrange = [0,0.]
 
 	if movie == false 
-		fig = figure(figsize=[nxFig,nyFig], dpi=600, tight_layout=true)
+		fig = figure(figsize=[nxFig,nyFig], dpi=600)
 	end
 
 	for i = 1:nImg
 
 		if movie == true
-			fig = figure(figsize=[nxFig,nyFig], dpi=600, tight_layout=true)
+			fig = figure(figsize=[nxFig,nyFig], dpi=600)
 		end
 
-		extend = find_partition(i, nImg, nxFig, nyFig)
+		extend = find_partition(i, nImg, nxFig, nyFig) # coordinates of panel i
 
-		fig[:add_axes](extend)
+		fig[:add_axes](extend) # set axis and its properties
 	
 		ax = gca()
 
@@ -101,19 +120,18 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 		xticks(Array{Float64}(linspace(0,1024,5)))
 		yticks(Array{Float64}(linspace(0,1024,5)))
 
-		if typeof(input[i]) == String
-
-			img = (FITS(input[i]))[ext]
+		if typeof(input[i]) == String  # pull in image and polish it
+			
+			img = (FITS(input[i]))[ext[i]]
 			
 			img = img[:,:, slice[i]]
 		else
-
 			img = input[:,:, slice[i]]
 		end
 
 		img = transpose(img)
 
-		img *= unitScale[i]
+		img *= scaleFac[i]
 		
 		if zmin[i] == zmax[i]
 
@@ -138,17 +156,15 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 		bad = find(img .> zrange[2])
 		img[bad] = zrange[2]
 
-		if pythonCMaps == false
-			
+		if pythonCMaps == false # choose color map
 			#map = cmap(colmap[i])
 			#map = ColorMap(map[1])
 			map = mycmap(colmap[i])
 		else
 			map = get_cmap(colmap[i])
 		end
-			
 
-		if log[i] == true
+		if log[i] == true # show image
 
 			imshow(log10(img), interpolation="none", cmap=map)
 		else
@@ -163,8 +179,10 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 			text = latexstring("\\rm "*annoText[i])
 			x0 = extend[1] + 0.65*extend[3]
 			y0 = extend[2] + 0.05*extend[4]
+
+			#	x0 -= 0.2 # trick imshow()
 			
-			fig[:text](x0, y0, scaleText, color=scaleCol[i], size="xx-small")
+			fig[:text](x0, y0, scaleText, color=scaleCol[i], size=txtSize)
 		end
 
 		if  annoText[i] != " "
@@ -172,12 +190,16 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 			text = latexstring("\\rm "*annoText[i])
 			x0 = extend[1] + 0.05*extend[3]
 			y0 = extend[2] + 0.9*extend[4]
-
-			fig[:text](x0, y0, text, color=annoCol[i], size="xx-small")
-
+			
+			#x0 += 0.23 # trick imshow()
+			
+			fig[:text](x0, y0, text, color=annoCol[i], size=txtSize)
 		end
 
-		make_contours()
+		make_contours(contFin[i], contZmin[i], contZmax[i], contNLevels[i],
+						contLevels[i,:], contCol[i], contLog[i], contFac[i],
+						contCharSize[i], contThick[i], contSlice[i], contSmooth[i],
+						contLabels[i])
 
 		if (movie == true) && (noColBar == false)
 				
@@ -191,7 +213,6 @@ function Fits_View(input; fout="./fview.pdf", scale=0., ext=1, log=false,
 	end
 	
 	if (movie == false) && (noColBar == false)
-
 		make_colbar(fig, zrange, colmap[1], name=unitName, log=log[1],
 			  			pythonCMaps=pythonCMaps)
 	end
@@ -382,59 +403,138 @@ function make_colbar(fig, zrange, colmap; name=" ", log=false, pythonCMaps=false
 	xlabel(name)
 end
 
-function make_contours()
+function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels, 
+					   contCol, contLog, contFac, contCharSize, contThick, contSlice,
+					   contSmooth, contLabels)
+	if contInput == ""
+		return
+	end
+	
+	ax = gca()
 
-end
+	if typeof(contInput) == String  # pull in image and polish it
 
-function arrayfy(input, nImg)
-
-	if isa(input, String)
-		input = [input]
+		img = (FITS(contInput))[contSlice]
+		
+		img = img[:,:, contSlice]
+	else
+		img = contInput[:,:, contSlice] # get slice of cube
 	end
 
-	output = input
+	img = transpose(img)
 
-	if length(input) != nImg
+	img *= contFac
+
+	if contSmooth > 0
+		img = Images.imfilter_gaussian(img, [contSmooth, contSmooth])
+	end
 	
+	if contLevels == 0 # make levels
+	
+		if contNLevels == 0
+			contNLevels = 5
+		end
+
+		print("Auto Contours $contNLevels levels: ")
+
+		if contZmin == contZmax # auto minmax
+
+			contZmin = minimum(img)
+			contZmax = maximum(img)
+		
+			if contLog == true && contZmin <= 0
+
+				good = find(img .> 0)
+
+				contZmin = minimum(img[good])
+			end
+		end
+
+		if contLog == false
+			contLevels = linspace(contZmin, contZmax, contNLevels)
+		else
+			contLevels = logspace(log10(contZmin), log10(contZmax), contNLevels)
+		end
+
+		println(contLevels)
+	end
+
+	cp = ax[:contour](img, colors=contCol, linewidth=contThick, levels=contLevels)
+
+	ax[:clabel](cp, inline=1, fmt="%1.3f", fontsize=contCharSize)
+end
+
+function arrayfy(input, nImg) # make value into array so we can loop over it
+
+	if isa(input, String)
+		
+		input = [input]
+		
+		output = input
+
+		for i=2:nImg
+				output = [output; input]
+		end
+	
+	elseif isa(input, Array)
+	
+		if length(input) != nImg
+	
+			output = Array(Any, nImg, length(input))
+			
+			for i=1:nImg
+				output[i,:] = input
+			end
+		else 
+			output = input
+		end
+	else
+		output = input
+
 		for i=2:nImg
 			output = [output; input]
 		end
-
-	elseif ! isa(input, Array)
-		output = [input]
 	end
 
 	return output
 end
 
-function find_partition(i, nImg, nx, ny) #
+function find_partition(i, nImg, nxFig, nyFig)
 
-	x0 = 0.005 # just to give a little bit of room on the sides
-	y0 = 1 - (nx - 2*x0)/ny
-
-	nxy = ceil(sqrt(nImg))
-
-	xsize = (1-2*x0)/nxy # square images
-	ysize = xsize
-
-	ix = (i-1) % nxy
-	iy = (nxy-1) - floor((i-1)/nxy)
-
-	dx = ix * xsize
-	dy = iy * ysize
-
-	extend = [x0+dx, y0+dy+x0/2, xsize, ysize]
-
-	if i==3 && nImg==3
-		extend[1] += 0.5*extend[3]
-	end
+	nx = ceil(sqrt(nImg))
+	ny = nx
 	
-	return extend
+	ix = 1 + (i-1) % nx
+	iy = 1 + floor((i-1)/nx)
+
+	xsize = 1.0/min(nx,ny)
+	ysize = xsize * nxFig/nyFig # square images 
+
+	x0 = (ix-1)*xsize
+	y0 = 1 - ( iy*ysize )
+
+	if nImg == 2 && i==2
+		x0 -= 0.25 # trick imshow()
+	end
+		
+	extend = [x0, y0, xsize, ysize]
+
+	if i==nImg && nImg<nx*ny # center last panel if uneven
+
+		extend[1] += 0.5*extend[3] 
+	end
+
+	#println("$extend $i $nImg $nxFig $nyFig")
+
+	return extend # from  bottom left corner and x0,y0,dx,dy in figure coords.
 end
 
-function mycmap(i) # http://peterkovesi.com/projects/colourmaps/index.html
-
+function mycmap(i) 
+	
+	# http://peterkovesi.com/projects/colourmaps/index.html
+	
 	path = "/Users/jdonnert/Dev/src/git/julia/common/colmaps/"
+	
 	# as long as the package is broken, we are using csv tables.
 	fnames = [
 	"_bgyr_35-85_c73_n256.csv"	,					# 1
