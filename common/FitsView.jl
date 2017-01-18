@@ -17,11 +17,11 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 					   	  	colmap=1, pythonCMaps=false, noColBar=false,
 				   			unitName="", scaleFac=1.,
 				   			scaleText=" ", scaleCol="black", 
-				   			annoText=" ", annoCol="black", 
+				   			annoText=L" ", annoCol="black", 
 							contFin="", contZmin=-1, contZmax=-1, contNLevels=5,
 							contLevels=[0,0], contCol="white", contLog=false, 
 							contFac=1, contCharSize="xx-small", contThick=3,
-							contSlice=1, contSmooth=0, contLabels="",
+							contSlice=1, contSmooth=0, contLabels="", contFmt="1.2f",
 				   			frameCol="black", txtSize="xx-small")
 	
 	if isa(input, String) # make sure its an array
@@ -49,31 +49,32 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	annoCol = arrayfy(annoCol, nImg)			# color of annotation text
 	scaleCol = arrayfy(annoCol, nImg)			# color of scale text
 	contFin = arrayfy(contFin, nImg)			# contour input
-	contZmin = arrayfy(contZmin, nImg)			
+	contLevels = arrayfy(contLevels, nImg)		# contour values
+	contZmin = arrayfy(contZmin, nImg)			# make contours from min max & N
 	contZmax = arrayfy(contZmax, nImg)
 	contNLevels = arrayfy(contNLevels, nImg)
-	contLevels = arrayfy(contLevels, nImg)
 	contCol = arrayfy(contCol, nImg)
 	contLog = arrayfy(contLog, nImg)
-	contThick = arrayfy(contThick, nImg)
+	contThick = arrayfy(contThick, nImg)		# correlates with contCharSize
 	contFac = arrayfy(contFac, nImg)
 	contSlice = arrayfy(contSlice, nImg)
 	contCharSize = arrayfy(contCharSize, nImg)	
 	contSmooth = arrayfy(contSmooth, nImg)		# fwhm of gaussian
 	contLabels = arrayfy(contLabels, nImg)
+	contFmt = arrayfy(contFmt, nImg)			# pyplot format string %2i %3.5e
 	frameCol = arrayfy(frameCol, nImg)
 	
 	pygui(false)
 
 	plt[:rc]("font", family="serif")
-	plt[:rc]("font", size="13")
+	plt[:rc]("font", size="22")
 
-	nxFig = 4.0 # figure size in inches (why god not SI/cm ??)
-	nyFig = 4.0
+	nxFig = 8.0 # figure size in inches (why god not SI/cm ??)
+	nyFig = 8.0
 
 	if nImg == 2
-		nxFig = 4.0
-		nyFig = 2.0
+		nxFig = 8.0
+		nyFig = 4.0
 	end
 
 	if noColBar == false
@@ -87,7 +88,7 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	end
 
 	for i = 1:nImg
-
+		
 		if movie == true
 			fig = figure(figsize=[nxFig,nyFig], dpi=600)
 		end
@@ -114,8 +115,8 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		minorticks_on()
 
-		tick_params(width=0.5, length=3, which="major", colors=frameCol[i])
-		tick_params(width=0.3, length=2, which="minor", colors=frameCol[i])
+		tick_params(width=0.7, length=4, which="major", colors=frameCol[i])
+		tick_params(width=0.5, length=3, which="minor", colors=frameCol[i])
 
 		xticks(Array{Float64}(linspace(0,1024,5)))
 		yticks(Array{Float64}(linspace(0,1024,5)))
@@ -176,30 +177,24 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 		
 		if (i == 1) && scaleText != " "
 
-			text = latexstring("\\rm "*annoText[i])
 			x0 = extend[1] + 0.65*extend[3]
 			y0 = extend[2] + 0.05*extend[4]
 
-			#	x0 -= 0.2 # trick imshow()
-			
 			fig[:text](x0, y0, scaleText, color=scaleCol[i], size=txtSize)
 		end
 
-		if  annoText[i] != " "
+		if  annoText[i] != L" "
 
-			text = latexstring("\\rm "*annoText[i])
 			x0 = extend[1] + 0.05*extend[3]
 			y0 = extend[2] + 0.9*extend[4]
 			
-			#x0 += 0.23 # trick imshow()
-			
-			fig[:text](x0, y0, text, color=annoCol[i], size=txtSize)
+			fig[:text](x0, y0, annoText[i], color=annoCol[i], size=txtSize)
 		end
 
 		make_contours(contFin[i], contZmin[i], contZmax[i], contNLevels[i],
 						contLevels[i,:], contCol[i], contLog[i], contFac[i],
 						contCharSize[i], contThick[i], contSlice[i], contSmooth[i],
-						contLabels[i])
+						contLabels[i], contFmt[i])
 
 		if (movie == true) && (noColBar == false)
 				
@@ -405,7 +400,7 @@ end
 
 function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels, 
 					   contCol, contLog, contFac, contCharSize, contThick, contSlice,
-					   contSmooth, contLabels)
+					   contSmooth, contLabels, contFmt)
 	if contInput == ""
 		return
 	end
@@ -461,7 +456,7 @@ function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels,
 
 	cp = ax[:contour](img, colors=contCol, linewidth=contThick, levels=contLevels)
 
-	ax[:clabel](cp, inline=1, fmt="%1.3f", fontsize=contCharSize)
+	ax[:clabel](cp, inline=1, fmt=contFmt, fontsize=contCharSize)
 end
 
 function arrayfy(input, nImg) # make value into array so we can loop over it
