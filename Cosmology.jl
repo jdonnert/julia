@@ -25,7 +25,7 @@ importall CGSUnits
 export H100, CosmoPar, Concord, WMAP7, Planck15
 export Show, Omega_tot, H0, dHubble, tHubble, Ez, Hubble, dComoving, dTransComoving, 
 		dAngular, dLuminosity, arcmin2kpc, kpc2arcmin, rhoCrit, overdensParam, lum2flux, 
-		flux2lum, t2a, a2t, z2t, t2z
+		flux2lum, a2t, z2t
 
 """ Fundamental Cosmological Parameters """
 type CosmoPar
@@ -42,6 +42,8 @@ end
 const Concord = CosmoPar("Concordance", 0.7, 0.03, 0.3, 0.7, 0, 0.8, 1)
 const WMAP7 = CosmoPar("(Komatsu+ 2010, Larson+ 2010)", 0.702, 0.728,0.0455, 0.272,2.47e-5,0.807, 0.967)
 const Planck15 = CosmoPar("(Planck Collaboration 2015 XIII)",0.6774,0.6911,0.0223,0.3089,9.23e-5,0.8159,0.9667)
+
+intCosmoPar = CosmoPar(" ",0,0,0,0,0,0,0) # global var for numerical integration
 
 function Show(cp::CosmoPar; z=0)
 
@@ -74,6 +76,7 @@ function Show(cp::CosmoPar; z=0)
 	println("   overdensParam	= $(overdensParam(cp, z))")
 	println("   lum2flux		= $(lum2flux(cp, 1, z)) erg/s/cm^2")
 	println("   flux2lum		= $(flux2lum(cp, 1, z)) erg/s")
+	println("   z2t 		   	= $(z2t(cp, z)) s")
 
 end
 
@@ -109,7 +112,7 @@ function tHubble(cp::CosmoPar)
 	t_Hubble = 1/H0(cp)
 end
 
-# functions that take arguments
+# functions that depend on redshift
 
 """ E(z)  Mo+ 2010 eq. 2.62, 3.75, Boehringer+ 2012 eq 5 """
 function Ez(cp::CosmoPar, z) 
@@ -124,9 +127,24 @@ function Hubble(cp::CosmoPar, z)
 	return H0(cp)/ Ez(cp, z) 
 end
 
-
-""" comoving distance at redshift z (Wickramasinghe+ 2010) """
+""" comoving distance at redshift z (Mo+ 2010 eq. 3.102) """
 function dComoving(cp::CosmoPar, z) 
+	
+	intCosmoPar = cp
+
+	result = quadgk(int_dComov, 0, z, reltol=1e-10, order=10)
+
+	return c/H0(cp) * result[1]
+end
+
+
+function int_dComov(z) # integrant
+
+	return 1/Ez(intCosmoPar, z)
+end
+
+""" approximate comoving distance at redshift z (Wickramasinghe+ 2010) """
+function dComoving_approx(cp::CosmoPar, z) 
 	
 	@assert((Omega_k(cp) == 0) && (cp.Omega_L != 0), 
 			"Approximation for comoving distance not valid")
@@ -154,13 +172,12 @@ function dTransComoving(cp::CosmoPar, z)
 	end
 	
 	sqrtOk = sqrt(abs(Omega_k(cp)))
-	dHubble = dHubble(cp)
 
 	if Omega_k(cp) > 0
-		return dHubble/sqrtOk * sinh(sqrtOk * dComov/dHubble)
+		return dHubble(cp)/sqrtOk * sinh(sqrtOk * dComov/dHubble(cp))
 	end
 
-	return dHubble/sqrtOk * sin(sqrtOk * dComov/dHubble)
+	return dHubble(cp)/sqrtOk * sin(sqrtOk * dComov/dHubble(cp))
 end
 
 """ Angular diameter distance at redshift z """
@@ -209,7 +226,6 @@ function overdensParam(cp::CosmoPar, z)
 
 	for i = 1:5
 		for j = 1:5 
-			@printf("	%g		%g		%g \n", cij[i][j] , x^(i-1) , y^(j-1))
 			sum += cij[i][j] * x^(i-1) * y^(j-1)
 		end
 	end
@@ -230,14 +246,24 @@ function flux2lum(cp::CosmoPar, F, z)
 	return F * 4*pi*dLuminosity(cp, z)^2
 end
 
-function t2a(cp::CosmoPar, t)
+""" Expansion faction to age of the Universe in s (Mo+ 2010 eq. 3.94) """
+function a2t(cp::CosmoPar, a)
 
-	a = 1
+	z = 1/a - 1
+
+	return z2t(cp, z)
 end
 
+""" Redshift to age of the Universe in s (Mo+ 2010 eq. 3.94) """
 function z2t(cp::CosmoPar, z)
 
-	t = 1 
+	result = quadgk(int_dComov, 0, z, reltol=1e-10, order=10)
+
+	return 1/H0(cp) * result[1]
+end
+
+function int_z2t(z) # integrant
+	return 1/Ez(intCosmoPar, z)/(1+z)
 end
 
 function t2z(cp::CosmoPar, t)
