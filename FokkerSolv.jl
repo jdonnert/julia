@@ -86,7 +86,7 @@ end
 
 # Driver routine
 
-function FKPSolv
+function FKPSolv()
 
 	nCRe = InitialCReSpectrum() 				# CRe spectrum n(p,alpha)
 
