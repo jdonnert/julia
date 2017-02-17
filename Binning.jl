@@ -10,6 +10,8 @@ function BinArr(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 
 	if pos == -1
 		pos = linspace(1, N, N)
+	else
+		@assert(N == (size(pos))[1], "Length of data $N != length of positions $Npos")
 	end
 
 	nbins = Integer(nbins)
