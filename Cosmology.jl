@@ -197,7 +197,7 @@ end
 """ Critical Density """
 function rhoCrit(cp::CosmoPar, z)
 
-	return Omega_tot(cp) * 3 * Hubble(cp,z)^2 / (8*pi*grav)
+	return (cp.Omega_L + (1+z)^3*cp.Omega_M) * 3 * H0(cp)^2 / (8*pi*grav)
 end
 
 """ Overdensity parameter (Pierpaoli+ 01)"""
@@ -247,7 +247,7 @@ end
 """ Redshift to age of the Universe in s (Mo+ 2010 eq. 3.94) """
 function z2t(cp::CosmoPar, z)
 
-	global int_cp = cp
+	global int_cp = cp # parameters of the integrant
 
 	result = quadgk(int_dComov, 0, z, reltol=1e-10, order=10)
 
