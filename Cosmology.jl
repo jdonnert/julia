@@ -71,7 +71,7 @@ function Show(cp::CosmoPar; z=0)
 	println("   Transverse_Comoving_Distance = $(Transverse_Comoving_Distance(cp, z)) cm")
 	println("   Angular_Diameter_Distance    = $(Angular_Diameter_Distance(cp, z)) cm")
 	println("   Luminosity_Distance          = $(Luminosity_Distance(cp, z)) cm")
-	println("   Angular_Size                 = $(Angular_Size(cp, 1, z)) arcmin")
+	println("   Angular_Size                 = $(Angular_Size(cp, 1, z)) arcmin/kpc")
 	println("   Critical_Density             = $(Critical_Density(cp, z)) g/cm^3")
 	println("   Overdensity_Parameter        = $(Overdensity_Parameter(cp, z))")
 	println("   Luminosity2Flux              = $(Luminosity2Flux(cp, 1, z)) erg/s/cm^2")
@@ -147,14 +147,14 @@ function Transverse_Comoving_Distance(cp::CosmoPar, z)
 	sqrtOk = sqrt(abs(Omega_k(cp)))
 
 	if Omega_k(cp) == 0
-		return dComov
+		result = dComov
+	elseif Omega_k(cp) > 0
+		result = dHubble/sqrtOk * sinh(sqrtOk * dComov/dHubble)
+	else
+		result = dHubble/sqrtOk * sin(sqrtOk * dComov/dHubble)
 	end
 
-	if Omega_k(cp) > 0
-		return dHubble/sqrtOk * sinh(sqrtOk * dComov/dHubble)
-	end
-
-	return dHubble/sqrtOk * sin(sqrtOk * dComov/dHubble)
+	return result
 end
 
 function Angular_Diameter_Distance(cp::CosmoPar, z)
