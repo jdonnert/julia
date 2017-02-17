@@ -22,10 +22,11 @@ module Cosmology
 
 importall CGSUnits
 
-export H100, CosmoPar, Concord, WMAP7, Planck15
-export Show, Omega_tot, H0, dHubble, tHubble, Ez, Hubble, dComoving, dTransComoving, 
-		dAngular, dLuminosity, angularSize, rhoCrit, overdensParam, lum2flux, 
-		flux2lum, a2t, z2t
+export H100, CosmoPar, CC, WMAP7, Planck15
+export Show, Omega_tot, H0, Hubble_Distance, Hubble_Time, Ez, Hubble, Comoving_Distance, 
+		Transverse_Comoving_Distance, Angular_Diameter_Distance, Luminosity_Distance, Angular_Size, 
+		Critical_Density, Overdensity_Parameter, Luminosity2Flux, Flux2Luminosity, Proper_Time_a, 
+		Proper_Time_z
 
 """ Fundamental Cosmological Parameters """
 type CosmoPar
@@ -34,18 +35,20 @@ type CosmoPar
 	Omega_b	:: Float64	# Baryon density parameter
 	Omega_M	:: Float64 	# Matter density
 	Omega_L	:: Float64	# Dark energy density parameter
-	Omega_r	:: Float64	# Dark energy density parameter
+	Omega_r	:: Float64	# Radiation density parameter
 	Sigma_8	:: Float64	# Fluctuation amplitude at 8/h Mpc
 	n :: Float64		# Primordial spectral index of fluctuation power spectrum
 end
 
-const Concord = CosmoPar("Concordance", 0.7, 0.03, 0.3, 0.7, 0, 0.8, 1)
-const WMAP7 = CosmoPar("(Komatsu+ 2010, Larson+ 2010)", 0.702, 0.728,0.0455, 0.272,2.47e-5,0.807, 0.967)
-const Planck15 = CosmoPar("(Planck Collaboration 2015 XIII)",0.6774,0.6911,0.0223,0.3089,9.23e-5,0.8159,0.9667)
+const CC = CosmoPar("Concordance Cosmology", 0.7, 0.03, 0.3, 0.7, 0, 0.8, 1)
+const WMAP7 = CosmoPar("(Komatsu+ 2010, Larson+ 2010)", 
+					   0.702, 0.728,0.0455, 0.272,2.47e-5,0.807, 0.967)
+const Planck15 = CosmoPar("(Planck Collaboration 2015 XIII)",
+						  0.6774,0.6911,0.0223,0.3089,9.23e-5,0.8159,0.9667)
 
 function Show(cp::CosmoPar; z=0)
 
-	println("\nFor $(cp.Name) cosmology :")
+	println("\nFor '$(cp.Name)' cosmology :")
     println("   Hbpar    	= $(cp.Hbpar)")
     println("   Omega_L  	= $(cp.Omega_L)")
     println("   Omega_M  	= $(cp.Omega_M)")
@@ -55,25 +58,25 @@ function Show(cp::CosmoPar; z=0)
     println("   n       	= $(cp.n)")
 	
 	println("\nDerived constants : " )
-	println("   Omega_tot 	= $(Omega_tot(cp))")
-	println("   Omega_k 	= $(Omega_k(cp))")
-	println("   H0       	= $(H0(cp)) 1/s")
-	println("   dHubble 	= $(dHubble(cp)) cm")
-	println("   tHubble  	= $(tHubble(cp)) cm")
+	println("   Omega_tot 	    = $(Omega_tot(cp))")
+	println("   Omega_k 	    = $(Omega_k(cp))")
+	println("   H0       	    = $(H0(cp)) 1/s")
+	println("   Hubble_Distance = $(Hubble_Distance(cp)) cm")
+	println("   Hubble_Time     = $(Hubble_Time(cp)) s")
 	
 	println("\nAt redshift z = $z : " )
-	println("   E(z)			= $(Ez(cp, z))")
-	println("   Hubble(z)		= $(Hubble(cp, z)) 1/s")
-	println("   dComoving		= $(dComoving(cp, z)) cm")
-	println("   dTransComoving	= $(dTransComoving(cp, z)) cm")
-	println("   dAngular		= $(dAngular(cp, z)) cm")
-	println("   dLuminosity		= $(dLuminosity(cp, z)) cm")
-	println("   angularSize		= $(angularSize(cp, 1, z)) arcmin")
-	println("   rhoCrit      	= $(rhoCrit(cp, z)) g/cm^3")
-	println("   overdensParam	= $(overdensParam(cp, z))")
-	println("   lum2flux		= $(lum2flux(cp, 1, z)) erg/s/cm^2")
-	println("   flux2lum		= $(flux2lum(cp, 1, z)) erg/s")
-	println("   z2t 		   	= $(z2t(cp, z)) s")
+	println("   E(z)                         = $(Ez(cp, z))")
+	println("   Hubble(z)                    = $(Hubble(cp, z)) 1/s")
+	println("   Comoving_Distance            = $(Comoving_Distance(cp, z)) cm")
+	println("   Transverse_Comoving_Distance = $(Transverse_Comoving_Distance(cp, z)) cm")
+	println("   Angular_Diameter_Distance    = $(Angular_Diameter_Distance(cp, z)) cm")
+	println("   Luminosity_Distance          = $(Luminosity_Distance(cp, z)) cm")
+	println("   Angular_Size                 = $(Angular_Size(cp, 1, z)) arcmin")
+	println("   Critical_Density             = $(Critical_Density(cp, z)) g/cm^3")
+	println("   Overdensity_Parameter        = $(Overdensity_Parameter(cp, z))")
+	println("   Luminosity2Flux              = $(Luminosity2Flux(cp, 1, z)) erg/s/cm^2")
+	println("   Flux2Luminosity              = $(Flux2Luminosity(cp, 1, z)) erg/s")
+	println("   Proper_Time                  = $(Proper_Time_z(cp, z)) s")
 
 end
 
@@ -97,14 +100,12 @@ function H0(cp::CosmoPar)
 	return cp.Hbpar * H100
 end
 
-""" Hubble Distance (Horizon) """
-function dHubble(cp::CosmoPar)
+function Hubble_Distance(cp::CosmoPar)
 	
 	return c/H0(cp)
 end
 
-""" Hubble Time (Age of the Universe) """
-function tHubble(cp::CosmoPar)
+function Hubble_Time(cp::CosmoPar)
 	
 	t_Hubble = 1/H0(cp)
 end
@@ -118,14 +119,14 @@ function Ez(cp::CosmoPar, z)
 			 + cp.Omega_r*(1+z)^4 + (1 - Omega_tot(cp))*(1+z)^2) 
 end
 
-""" Hubble Constant at redshift z, (Mo+ 2010 eq. 3.74)"""
+""" Redshift dependent Hubble parameter (Mo+ 2010 eq. 3.74) """
 function Hubble(cp::CosmoPar, z) 
 	
 	return H0(cp)/ Ez(cp, z) 
 end
 
-""" comoving distance at redshift z (Mo+ 2010 eq. 3.102) """
-function dComoving(cp::CosmoPar, z) 
+""" Mo+ 2010 eq. 3.102 """
+function Comoving_Distance(cp::CosmoPar, z) 
 	
 	global int_cp = cp # global var holds parameters for the integrant
 	
@@ -139,69 +140,46 @@ function int_dComov(z) # integrant
 	return 1/Ez(int_cp, z)
 end
 
-""" approximate comoving distance at redshift z (Wickramasinghe+ 2010) """
-function dComoving_approx(cp::CosmoPar, z) 
-	
-	@assert((Omega_k(cp) == 0) && (cp.Omega_L != 0), 
-			"Approximation for comoving distance not valid")
+function Transverse_Comoving_Distance(cp::CosmoPar, z)
 
-	alpha = 1 + 2*cp.Omega_L/ (1 - cp.Omega_L) / (1+z)^3
-    x = log(alpha + sqrt(alpha^2 - 1))
-    Sigma_z = 3 * x^(1/3) * 2^(2/3) * (1 - x^2/252. + x^4/21060)
-
-    alpha =  1 + 2*cp.Omega_L/ (1 - cp.Omega_L)
-    x = log(alpha + sqrt(alpha^2 - 1))
-    Sigma_0 = 3 * x^(1/3) * 2^(2/3) * (1 - x^2/252. + x^4/21060)
-
-	prefac = c/(3*H0(cp))/(cp.Omega_L^(1/6)*(1-cp.Omega_L)^(1/3))
-
-	return prefac * (Sigma_0 - Sigma_z)
-end
-
-""" Transverse comoving distance at redshift z """
-function dTransComoving(cp::CosmoPar, z)
-
-	dComov = dComoving(cp, z)
+	dHubble = Hubble_Distance(cp)
+	dComov = Comoving_Distance(cp, z)
+	sqrtOk = sqrt(abs(Omega_k(cp)))
 
 	if Omega_k(cp) == 0
 		return dComov
 	end
-	
-	sqrtOk = sqrt(abs(Omega_k(cp)))
 
 	if Omega_k(cp) > 0
-		return dHubble(cp)/sqrtOk * sinh(sqrtOk * dComov/dHubble(cp))
+		return dHubble/sqrtOk * sinh(sqrtOk * dComov/dHubble)
 	end
 
-	return dHubble(cp)/sqrtOk * sin(sqrtOk * dComov/dHubble(cp))
+	return dHubble/sqrtOk * sin(sqrtOk * dComov/dHubble)
 end
 
-""" Angular diameter distance at redshift z """
-function dAngular(cp::CosmoPar, z) # angular diameter distance
+function Angular_Diameter_Distance(cp::CosmoPar, z)
 	
-	return dTransComoving(cp, z) / (1+z)
+	return Transverse_Comoving_Distance(cp, z) / (1+z)
 end
 
-""" Luminosity distance at redshift z """
-function dLuminosity(cp::CosmoPar, z) # luminosity distance
+function Luminosity_Distance(cp::CosmoPar, z)
 	
-	return (1+z) * dTransComoving(cp, z)
+	return (1+z) * Transverse_Comoving_Distance(cp, z)
 end
 
 """ Convert kpc to arcmin on the sky (kpc2arcmin) """
-function angularSize(cp::CosmoPar, nkpc, z)
+function Angular_Size(cp::CosmoPar, nkpc, z)
 
-	return nkpc*kpc2cm / dAngular(cp, z) / arcmin2rad
+	return nkpc*kpc2cm / Angular_Diameter_Distance(cp, z) / arcmin2rad
 end
 
-""" Critical Density """
-function rhoCrit(cp::CosmoPar, z)
+function Critical_Density(cp::CosmoPar, z)
 
 	return (cp.Omega_L + (1+z)^3*cp.Omega_M) * 3 * H0(cp)^2 / (8*pi*grav)
 end
 
-""" Overdensity parameter (Pierpaoli+ 01)"""
-function overdensParam(cp::CosmoPar, z)
+""" Delta(z) (Pierpaoli+ 01)"""
+function Overdensity_Parameter(cp::CosmoPar, z)
 
 	cij = [ [546.67, -137.82, 94.083, -204.68,  111.51], 	
 	    	[-1745.6, 627.22,  -1175.2, 2445.7,  -1341.7], 	
@@ -225,27 +203,27 @@ end
 
 
 """ Convert luminosity to flux in cgs"""
-function lum2flux(cp::CosmoPar, L, z)
+function Luminosity2Flux(cp::CosmoPar, L, z)
 
-	return L / (4*pi*dLuminosity(cp, z)^2)
+	return L / (4*pi*Luminosity_Distance(cp, z)^2)
 end
 
 """ Convert Flux to luminosity in cgs """
-function flux2lum(cp::CosmoPar, F, z)
+function Flux2Luminosity(cp::CosmoPar, F, z)
 
-	return F * 4*pi*dLuminosity(cp, z)^2
+	return F * 4*pi*Luminosity_Distance(cp, z)^2
 end
 
 """ Expansion factor to age of the Universe in s """
-function a2t(cp::CosmoPar, a)
+function Proper_Time_a(cp::CosmoPar, a)
 
 	z = 1/a - 1
 
-	return z2t(cp, z)
+	return Proper_Time_z(cp, z)
 end
 
-""" Redshift to age of the Universe in s (Mo+ 2010 eq. 3.94) """
-function z2t(cp::CosmoPar, z)
+""" Age of the Universe in s from redshift (Mo+ 2010 eq. 3.94) """
+function Proper_Time_z(cp::CosmoPar, z)
 
 	global int_cp = cp # parameters of the integrant
 
