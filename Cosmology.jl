@@ -1,7 +1,7 @@
 """
-Implement a type setting fundamental cosmological parameters (CosmoPar) and a bunch of methods that 
+Implement fundamental cosmological parameters (CosmoPar) and a bunch of methods that 
 compute cosmological quantities from it. We provide a number of standard parameter 
-sets: Concord, WMAP7, Planck15
+sets: CC, WMAP7, Planck15
 
 	using Cosmology
 
