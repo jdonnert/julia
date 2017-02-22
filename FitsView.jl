@@ -79,6 +79,10 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 
 	if noColBar == false
 		nyFig *= 1.25 # color bar adds 25% space on the bottom
+
+		if nImg == 2
+			nyFig *= 1.1
+		end
 	end
 
 	zrange = [0,0.]
@@ -198,7 +202,7 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		if (movie == true) && (noColBar == false)
 				
-			make_colbar(fig, zrange, colmap[i]; unitName, log=log[i])
+			make_colbar(fig, zrange, colmap[i], nImg; unitName, log=log[i])
 
 			savefig(fout*"_$i.jpg")
 
@@ -208,7 +212,7 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	end
 	
 	if (movie == false) && (noColBar == false)
-		make_colbar(fig, zrange, colmap[1], name=unitName, log=log[1],
+		make_colbar(fig, zrange, colmap[1], nImg; name=unitName, log=log[1],
 			  			pythonCMaps=pythonCMaps)
 	end
 
@@ -219,11 +223,15 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	return
 end
 
-function make_colbar(fig, zrange, colmap; name=" ", log=false, pythonCMaps=false)
+function make_colbar(fig, zrange, colmap, nImg; name=" ", log=false, pythonCMaps=false)
 
 	const N = 1024
 	
-	fig[:add_axes]([0.1, 0.12, 0.8, 0.06])
+	if nImg == 2 
+		fig[:add_axes]([0.1, 0.2, 0.8, 0.06])
+	else
+		fig[:add_axes]([0.1, 0.12, 0.8, 0.06])
+	end
 
 	cax = gca()
 	
@@ -528,7 +536,7 @@ function mycmap(i)
 	
 	# http://peterkovesi.com/projects/colourmaps/index.html
 	
-	path = "/Users/jdonnert/Dev/src/git/julia/common/colmaps/"
+	path = "/Users/jdonnert/Dev/src/git/julia/colmaps/"
 	
 	# as long as the package is broken, we are using csv tables.
 	fnames = [

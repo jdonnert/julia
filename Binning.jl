@@ -12,13 +12,13 @@ Example 1:
 
 	data = randn(2048)
 
-	bMean, bPos, bCnt = BinArr(zeros(2048), pos=data, nbins=64)
+	bMean, bPos, bCnt = BinArray(zeros(2048), pos=data, nbins=64)
 
 	plot(bPos, binCnt) # plot a Gaussian
 
 Example 2:
 
-	bMean, bPos = BinArr(rho, pos=r, nbins=128, log=true)
+	bMean, bPos = BinArray(rho, pos=r, nbins=128, log=true)
 
 	plot(bPos, bMean, xscale=:log10, yscale=:log10) # plot radial profile
 
