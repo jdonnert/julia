@@ -43,11 +43,9 @@ function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 
 		if log == true
 	
-			good = pos .> 0
-			
-			pos = pos[good] # constrain positions
+			pos = pos[find(pos .> 0)] # constrain positions
 
-			println("$(N-size(good)[1]) of $N elements not in log space")
+			println("$(N-length(pos)) of $N elements not in log space")
 			
 			log_bnd = log10([Float64(minimum(pos)), Float64(maximum(pos))])
 
@@ -60,26 +58,27 @@ function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 
 		end
 
-	elseif typeof(bin_low) == Array
-	
+	elseif typeof(bins) == Array
 
-		bins = [minimum(pos); bins; maximum(pos)]
+		valid = find(bins .> minimum(pos) & bins .< maximum(pos))
+
+		bins = [minimum(pos); bins[valid]; maximum(pos)]
 		
 		nbins = length(bins)-1
 
 	else	
-		@assert(false, "Cant bin without nbins > 0 or bin_low::Array")
+		@assert(false, "Cant bin without nbins > 0 or bins::Array")
 	end
 	
-	hig = bins[2:nbins+1]
-	low = bins[1:nbins]
+	up = bins[2:nbins+1]
+	lo = bins[1:nbins]
 
-	val = Array{Float64}(nbins)
-	cnt = Array{Int64}(nbins)
+	val = zeros(Float64,nbins)
+	cnt = zeros(Int64,nbins)
 
 	Threads.@threads for i = 1:nbins
 	
-		good = find((pos .>= low[i]) & (pos .< high[i]))
+		good = find((pos .>= lo[i]) & (pos .< up[i]))
 
 		cnt[i] = length(good)
 
@@ -89,7 +88,7 @@ function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 
 	end
 
-	bin_pos = low + 0.5 .* (high - low)
+	bin_pos = lo + 0.5 .* (up - lo)
 
 	return val, bin_pos, cnt
 end
