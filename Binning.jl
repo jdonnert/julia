@@ -23,7 +23,7 @@ Example 2:
 	plot(bPos, bMean, xscale=:log10, yscale=:log10) # plot radial profile
 
 """
-function BinArray(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
+function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 
 	@assert(ndims(arr) == 1, "\nCan't bin multi-dimensional arrays\n")
 
@@ -62,27 +62,26 @@ function BinArray(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 
 	elseif typeof(bin_low) == Array
 	
-		nbins = length(bin_low)-1
-
-		bins = bin_low[1:nbins] + 0.5 .* (bin_low[2:nbins+1] - bin_low[1:nbins]) 
 
 		bins = [minimum(pos); bins; maximum(pos)]
+		
+		nbins = length(bins)-1
 
 	else	
 		@assert(false, "Cant bin without nbins > 0 or bin_low::Array")
 	end
 	
-	bin_hig = bins[2:nbins+1]
-	bin_low = bins[1:nbins]
+	hig = bins[2:nbins+1]
+	low = bins[1:nbins]
 
 	val = Array{Float64}(nbins)
 	cnt = Array{Int64}(nbins)
 
 	Threads.@threads for i = 1:nbins
 	
-		good = find((pos .>= bin_low[i]) & (pos .< bin_hig[i]))
+		good = find((pos .>= low[i]) & (pos .< high[i]))
 
-		cnt[i] = size(good,1)
+		cnt[i] = length(good)
 
 		if cnt[i] > 0
 			val[i] = mean(arr[good])
@@ -90,7 +89,7 @@ function BinArray(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 
 	end
 
-	bin_pos = bin_low + 0.5 .* (bin_hig - bin_low)
+	bin_pos = low + 0.5 .* (high - low)
 
 	return val, bin_pos, cnt
 end
