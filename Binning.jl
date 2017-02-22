@@ -35,9 +35,9 @@ function BinArray(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 		@assert(N == size(pos,1), "Length of data != length of positions")
 	end
 
-	arr, pos, N = clean_data(arr, pos, N)
-
 	nbins = Integer(nbins)
+
+	arr, pos, N = clean_data(arr, pos, N)
 
 	if nbins > 0
 
@@ -64,7 +64,7 @@ function BinArray(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 	
 		nbins = length(bin_low)-1
 
-		bins = bin_low[1:nbins] + 0.5 .* (bin_low[2:nbins+1] - bin_los[1:nbins]) 
+		bins = bin_low[1:nbins] + 0.5 .* (bin_low[2:nbins+1] - bin_low[1:nbins]) 
 
 		bins = [minimum(pos); bins; maximum(pos)]
 
