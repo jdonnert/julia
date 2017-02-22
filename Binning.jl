@@ -75,8 +75,8 @@ function BinArray(arr::Array; pos=-1, bin_low=-1, log=false, nbins=0)
 	bin_hig = bins[2:nbins+1]
 	bin_low = bins[1:nbins]
 
-	val = Array(Float64, nbins)
-	cnt = Array(Int64, nbins)
+	val = Array{Float64}(nbins)
+	cnt = Array{Int64}(nbins)
 
 	Threads.@threads for i = 1:nbins
 	
