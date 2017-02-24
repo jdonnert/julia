@@ -1,10 +1,10 @@
-# We make the Brewer Colors available to PGFPlots Plot.Linear.
-# the colors are available as Br+number: 
-# p = Plots.Linear(x,y, style="Br4")
-
+"""
+We make the Brewer Colors available to PGFPlots Plot.Linear.
+the colors are available as Br+number: 
+p = Plots.Linear(x,y, style="Br4")
+"""
 module ColorPGF
 
-using ColorBrewer
 using PGFPlots
 using ColorTypes
 

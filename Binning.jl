@@ -45,8 +45,10 @@ function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 	
 			pos = pos[find(pos .> 0)] # constrain positions
 
-			println("$(N-length(pos)) of $N elements not in log space")
-			
+			if N > length(pos)
+				println("$(N-length(pos)) of $N elements not in log space")
+			end
+
 			log_bnd = log10([Float64(minimum(pos)), Float64(maximum(pos))])
 
 			bins = logspace(log_bnd[1], log_bnd[2], nbins+1)
