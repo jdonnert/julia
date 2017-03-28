@@ -14,7 +14,7 @@ function itoa(input::Integer, len::Integer)
 	
 	newstr = string(input)
 
-	Ni = floor(log10(input))+1
+	Ni = size(digits(input),1)
 
 	for i=1:len-Ni
 		newstr = "0"*newstr
