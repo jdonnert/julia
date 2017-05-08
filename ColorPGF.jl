@@ -1,12 +1,15 @@
 """
 We make the Brewer Colors available to PGFPlots Plot.Linear.
-the colors are available as Br+number: 
-p = Plots.Linear(x,y, style="Br4")
+the colors are available as name+number: 
+	p = Plots.Linear(x,y, style="PuBu4")
+Sets color 4 from the sequential PuBu map.
+Brewer colors are good for plots. Use the PerceptualColourMaps for projections.
 """
 module ColorPGF
 
 using PGFPlots
 using ColorTypes
+using ColorBrewer
 
 export Set, InitPGF
 

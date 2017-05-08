@@ -5,7 +5,7 @@ sets: CC, WMAP7, Planck15
 
 	using Cosmology
 
-	cp = Concord		# copy concordance cosmology
+	cp = CC				# copy concordance cosmology
 	println(dHubble(cp))
 
 	cp.Hbpar = 71.5 	# change Hubble parameter
@@ -20,13 +20,13 @@ Feb. 2017, Initial Version (Julius Donnert, UMN)
 
 module Cosmology
 
-importall CGSUnits
+using CGSUnits
 
-export H100, CosmoPar, CC, WMAP7, Planck15
+export CosmoPar, CC, WMAP7, Planck15 # exposed functions, variables and types
 export Show, Omega_tot, H0, Hubble_Distance, Hubble_Time, Ez, Hubble, Comoving_Distance, 
 		Transverse_Comoving_Distance, Angular_Diameter_Distance, Luminosity_Distance, Angular_Size, 
 		Critical_Density, Overdensity_Parameter, Luminosity2Flux, Flux2Luminosity, Proper_Time_a, 
-		Proper_Time_z
+		Proper_Time_z, Arcmin2Kpc
 
 """ Fundamental Cosmological Parameters """
 type CosmoPar
@@ -41,10 +41,8 @@ type CosmoPar
 end
 
 const CC = CosmoPar("Concordance Cosmology", 0.7, 0.03, 0.3, 0.7, 0, 0.8, 1)
-const WMAP7 = CosmoPar("(Komatsu+ 2010, Larson+ 2010)", 
-					   0.702, 0.728,0.0455, 0.272,2.47e-5,0.807, 0.967)
-const Planck15 = CosmoPar("(Planck Collaboration 2015 XIII)",
-						  0.6774,0.6911,0.0223,0.3089,9.23e-5,0.8159,0.9667)
+const WMAP7 = CosmoPar("(Komatsu+ 2010, Larson+ 2010)", 0.702, 0.728,0.0455, 0.272,2.47e-5,0.807, 0.967)
+const Planck15 = CosmoPar("(Planck Collaboration 2015 XIII)", 0.6774,0.6911,0.0223,0.3089,9.23e-5,0.8159,0.9667)
 
 function Show(cp::CosmoPar; z=0)
 
@@ -167,10 +165,25 @@ function Luminosity_Distance(cp::CosmoPar, z)
 	return (1+z) * Transverse_Comoving_Distance(cp, z)
 end
 
-""" Convert kpc to arcmin on the sky (kpc2arcmin) """
+""" 
+Convert kpc to arcmin on the sky (kpc2arcmin) 
+
+Concordance Cosmology:
+	nArcmin =  Angular_Size(CC, nkpc, z)
+"""
 function Angular_Size(cp::CosmoPar, nkpc, z)
 
 	return nkpc*kpc2cm / Angular_Diameter_Distance(cp, z) / arcmin2rad
+end
+""" 
+Convert arcmin to kpc on the sky  
+
+Concordance Cosmology:
+	nkpc = Arcmin2Kpc(CC, nArcmin, z)
+"""
+function Arcmin2Kpc(cp::CosmoPar, nArcmin, z)
+
+	return nArcmin*arcmin2rad * Angular_Diameter_Distance(cp, z) /kpc2cm
 end
 
 function Critical_Density(cp::CosmoPar, z)
@@ -178,7 +191,7 @@ function Critical_Density(cp::CosmoPar, z)
 	return (cp.Omega_L + (1+z)^3*cp.Omega_M) * 3 * H0(cp)^2 / (8*pi*grav)
 end
 
-""" Delta(z) (Pierpaoli+ 01)"""
+""" This is Delta(z) (Pierpaoli+ 01)"""
 function Overdensity_Parameter(cp::CosmoPar, z)
 
 	cij = [ [546.67, -137.82, 94.083, -204.68,  111.51], 	
@@ -222,7 +235,7 @@ function Proper_Time_a(cp::CosmoPar, a)
 	return Proper_Time_z(cp, z)
 end
 
-""" Age of the Universe in s from redshift (Mo+ 2010 eq. 3.94) """
+""" Age of the Universe in sec from redshift (Mo+ 2010 eq. 3.94) """
 function Proper_Time_z(cp::CosmoPar, z)
 
 	global int_cp = cp # parameters of the integrant

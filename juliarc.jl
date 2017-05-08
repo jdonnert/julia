@@ -10,7 +10,7 @@ using CGSUnits 			# Physical constants and conversion
 using StringConversion	# convert integer to strings with zero padding
 using ArrayStatistics
 using Binning
-using Cosmology
+#using Cosmology
 
 # PGF Plotting
 using ColorPGF
@@ -21,7 +21,7 @@ import ColorBrewer
 colorBrewerSet1 = ColorBrewer.palette("Set1", 9)
 
 using Plots
-gr(size=(512, 512/sqrt(2)), grid=false, legend=:none, linewidth=1, markersize=1,
+gr(size=(1024, 1024/sqrt(2)), grid=false, legend=:none, linewidth=1, markersize=1,
 	 margin=5mm, color_palette=colorBrewerSet1, xlabel="x", ylabel="y",
  	 markerstrokewidth=0, tickfont=font(7, "Helvetica"), grid=true ) 
 

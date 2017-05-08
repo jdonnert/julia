@@ -8,21 +8,36 @@ using ColorTypes
 using FixedPointNumbers
 using PyPlot
 using Images
+using LaTeXStrings
 #using PerceptualColourMaps
 
 export Fits_View
 
+"""
+Plot images, this is a swiss army knife ...
+	Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
+				   		slice=1, zmin=0.0, zmax=0.0, movie=false, 
+					   	colmap=1, pythonCMaps=false, noColBar=false, colbarTxtSize=8
+						unitName="", scaleFac=1., layout=[],
+				   		scaleText=" ", scaleCol="black", 
+				   		annoText=L" ", annoCol="black", 
+						contFin="", contZmin=-1, contZmax=-1, contNLevels=5,
+						contLevels=[0,0], contCol="white", contLog=false, 
+						contFac=1, contCharSize="xx-small", contThick=3,
+						contSlice=1, contSmooth=0, contLabels="", contFmt="1.2f",
+				   		frameCol="black", txtSize="xx-small")
+"""
 function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
-				   		  	slice=1, zmin=0., zmax=0., movie=false, 
+				   		  	slice=1, zmin=0.0, zmax=0.0, movie=false, 
 					   	  	colmap=1, pythonCMaps=false, noColBar=false,
-				   			unitName="", scaleFac=1.,
+							unitName="", scaleFac=1., layout=[],
 				   			scaleText=" ", scaleCol="black", 
 				   			annoText=L" ", annoCol="black", 
 							contFin="", contZmin=-1, contZmax=-1, contNLevels=5,
 							contLevels=[0,0], contCol="white", contLog=false, 
 							contFac=1, contCharSize="xx-small", contThick=3,
 							contSlice=1, contSmooth=0, contLabels="", contFmt="1.2f",
-				   			frameCol="black", txtSize="xx-small")
+				   			frameCol="black", txtSize=20, dpi=600)
 	
 	if isa(input, String) # make sure its an array
 		input = [input]
@@ -34,7 +49,7 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 		nImg = length(slice)
 	end
 
-	println("Found $nImg images")
+	println("Found $nImg images, layout $layout")
 
 	# make parameters indexable by nImg
 
@@ -66,21 +81,25 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	
 	pygui(false)
 
-	plt[:rc]("font", family="serif")
-	plt[:rc]("font", size="22")
+	plt[:rc]("font", family="serif", size=string(txtSize), serif="Times")
+	plt[:rc]("text", usetex="true")
 
 	nxFig = 8.0 # figure size in inches (why god not SI/cm ??)
 	nyFig = 8.0
 
+	if nImg > 2
+		nxFig *= 2
+		nyFig *= 2
+	end
+
 	if nImg == 2
-		nxFig = 8.0
-		nyFig = 4.0
+		nxFig *= 2
 	end
 
 	if noColBar == false
-		nyFig *= 1.25 # color bar adds 25% space on the bottom
+		nyFig *= 1.20 # color bar adds 25% space on the bottom
 
-		if nImg == 2
+		if nImg <= 2
 			nyFig *= 1.1
 		end
 	end
@@ -88,23 +107,23 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	zrange = [0,0.]
 
 	if movie == false 
-		fig = figure(figsize=[nxFig,nyFig], dpi=600)
+		fig = figure(figsize=[nxFig,nyFig], dpi=dpi)
 	end
 
 	for i = 1:nImg
 		
 		if movie == true
-			fig = figure(figsize=[nxFig,nyFig], dpi=600)
+			fig = figure(figsize=[nxFig,nyFig], dpi=dpi)
 		end
 
-		extend = find_partition(i, nImg, nxFig, nyFig) # coordinates of panel i
+		extend = find_partition(i, nImg, nxFig, nyFig, layout) # coordinates of panel i
 
 		fig[:add_axes](extend) # set axis and its properties
 	
 		ax = gca()
 
-		ax[:set_xlim]([0,1024])
-		ax[:set_ylim]([0,1024])
+		ax[:set_xlim]([0,1023])
+		ax[:set_ylim]([0,1023])
 
 		ax[:set_xlabel](" ")
 		ax[:set_ylabel](" ")
@@ -117,10 +136,13 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 		ax[:spines]["right"][:set_color](frameCol[i])
 		ax[:spines]["left"][:set_color](frameCol[i])
 
+		ax[:xaxis][:set_ticks_position]("both")
+		ax[:yaxis][:set_ticks_position]("both")
+
 		minorticks_on()
 
-		tick_params(width=0.7, length=4, which="major", colors=frameCol[i])
-		tick_params(width=0.5, length=3, which="minor", colors=frameCol[i])
+		tick_params(width=0.9, length=5, which="major", colors=frameCol[i], direction="in")
+		tick_params(width=0.5, length=3, which="minor", colors=frameCol[i], direction="in")
 
 		xticks(Array{Float64}(linspace(0,1024,5)))
 		yticks(Array{Float64}(linspace(0,1024,5)))
@@ -171,17 +193,17 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		if log[i] == true # show image
 
-			imshow(log10(img), interpolation="none", cmap=map)
+			imshow(log10(img), interpolation="none", cmap=map, vmin=log10(zrange[1]),vmax=log10(zrange[2]))
 		else
 
-			imshow(img, interpolation="none", cmap=map)
+			imshow(img, interpolation="none", cmap=map, vmin=zrange[1],vmax=zrange[2])
 		end
 
 		# annotations 
 		
 		if (i == 1) && scaleText != " "
 
-			x0 = extend[1] + 0.65*extend[3]
+			x0 = extend[1] + 0.75*extend[3]
 			y0 = extend[2] + 0.05*extend[4]
 
 			fig[:text](x0, y0, scaleText, color=scaleCol[i], size=txtSize)
@@ -202,7 +224,7 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 
 		if (movie == true) && (noColBar == false)
 				
-			make_colbar(fig, zrange, colmap[i], nImg; unitName, log=log[i])
+			make_colbar(fig, zrange, colmap[i], nImg; unitName, log=log[i], txtSize=txtSize+1)
 
 			savefig(fout*"_$i.jpg")
 
@@ -213,8 +235,10 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	
 	if (movie == false) && (noColBar == false)
 		make_colbar(fig, zrange, colmap[1], nImg; name=unitName, log=log[1],
-			  			pythonCMaps=pythonCMaps)
+			  			pythonCMaps=pythonCMaps, txtSize=txtSize+1)
 	end
+
+	println(fout)
 
 	savefig(fout)
 
@@ -223,14 +247,18 @@ function Fits_View(input; 	fout="./fview.pdf", scale=0., ext=1, log=false,
 	return
 end
 
-function make_colbar(fig, zrange, colmap, nImg; name=" ", log=false, pythonCMaps=false)
+function make_colbar(fig, zrange, colmap, nImg; name=" ", log=false, pythonCMaps=false, txtSize=8)
 
 	const N = 1024
 	
-	if nImg == 2 
-		fig[:add_axes]([0.1, 0.2, 0.8, 0.06])
+	if nImg == 1 
+		fig[:add_axes]([0.1, 0.13, 0.8, 0.06]) # layouts change with nImg
+	elseif nImg == 2 
+		fig[:add_axes]([0.1, 0.15, 0.8, 0.06])
+	elseif nImg <= 4
+		fig[:add_axes]([0.1, 0.1, 0.8, 0.06])
 	else
-		fig[:add_axes]([0.1, 0.12, 0.8, 0.06])
+		fig[:add_axes]([0.1, 0.06, 0.8, 0.06])
 	end
 
 	cax = gca()
@@ -400,10 +428,16 @@ function make_colbar(fig, zrange, colmap, nImg; name=" ", log=false, pythonCMaps
 	else
 		map = get_cmap(colmap)
 	end
+		
+	cax[:xaxis][:set_ticks_position]("both")
+	cax[:yaxis][:set_ticks_position]("both")
+		
+	tick_params(width=1.5, length=5, which="major", direction="in", pad=10, labelsize=txtSize)
+	tick_params(width=1.0, length=3, which="minor", direction="in")
 
 	imshow(cbar, interpolation="hanning", cmap=map)
 
-	xlabel(name)
+	xlabel(name, labelpad=10, fontsize=txtSize)
 end
 
 function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels, 
@@ -417,8 +451,8 @@ function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels,
 
 	if typeof(contInput) == String  # pull in image and polish it
 
-		img = (FITS(contInput))[contSlice]
-		
+		img = (FITS(contInput))[1]
+
 		img = img[:,:, contSlice]
 	else
 		img = contInput[:,:, contSlice] # get slice of cube
@@ -429,7 +463,8 @@ function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels,
 	img *= contFac
 
 	if contSmooth > 0
-		img = Images.imfilter_gaussian(img, [contSmooth, contSmooth])
+		#img = Images.imfilter_gaussian(img, [contSmooth, contSmooth])
+		img = Images.imfilter(img, KernelFactors.IIRGaussian([contSmooth, contSmooth]))
 	end
 	
 	if contLevels == 0 # make levels
@@ -462,7 +497,7 @@ function make_contours(contInput, contZmin, contZmax, contNLevels, contLevels,
 		println(contLevels)
 	end
 
-	cp = ax[:contour](img, colors=contCol, linewidth=contThick, levels=contLevels)
+	cp = ax[:contour](img, colors=contCol, linewidths=contThick, levels=contLevels)
 
 	ax[:clabel](cp, inline=1, fmt=contFmt, fontsize=contCharSize)
 end
@@ -497,15 +532,24 @@ function arrayfy(input, nImg) # make value into array so we can loop over it
 		for i=2:nImg
 			output = [output; input]
 		end
+
+		if nImg == 1
+			output = [input]
+		end
 	end
 
 	return output
 end
 
-function find_partition(i, nImg, nxFig, nyFig)
+function find_partition(i, nImg, nxFig, nyFig, layout)
 
-	nx = ceil(sqrt(nImg))
-	ny = nx
+	if layout == []
+		nx = ceil(sqrt(nImg))
+		ny = nx
+	else
+		nx = layout[1]
+		ny = layout[2]
+	end
 	
 	ix = 1 + (i-1) % nx
 	iy = 1 + floor((i-1)/nx)
@@ -516,15 +560,13 @@ function find_partition(i, nImg, nxFig, nyFig)
 	x0 = (ix-1)*xsize
 	y0 = 1 - ( iy*ysize )
 
-	if nImg == 2 && i==2
-		x0 -= 0.25 # trick imshow()
-	end
-		
 	extend = [x0, y0, xsize, ysize]
 
-	if i==nImg && nImg<nx*ny # center last panel if uneven
+	if  nImg<nx*ny # center last panel if uneven
 
-		extend[1] += 0.5*extend[3] 
+		if iy == ny 
+			extend[1] += extend[3] /2
+		end
 	end
 
 	#println("$extend $i $nImg $nxFig $nyFig")
