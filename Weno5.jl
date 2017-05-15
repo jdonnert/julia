@@ -14,7 +14,7 @@ const iMax = N - NBnd	# grid loop maximum without boundaries
 const xsize = 1
 const dx = xsize/N
 
-const gamma = 5.0/3.0	# adiabatic index
+const gamma = 5.0/3.0	# adiabatic index & friends
 const gam0 = 1-gamma
 const gam1 = (gamma-1)/2
 const gam2 = (gamma-2)/(gamma-1)
@@ -22,7 +22,7 @@ const gamS = (gamma-1)/gamma
 
 const courFac = 0.8		# Courant Factor
 
-const eps = 1e-6 		# Jiang & Wu after eq 2.3 
+const eps = 1e-6 		# Jiang & Wu eq 2.3++ 
 
 export WENO5
 
@@ -43,31 +43,34 @@ function WENO5()
 
 		q0 = copy(q)
 		
+		println("1 q    : $(q0[1,:])")
+		println("2 q    : $(q0[2,:])")
+		println("3 q    : $(q0[3,:])")
 		println("iMin q : $(q0[iMin,:])")
 		println("128  q : $(q0[128,:])")
 		println("iMax q : $(q0[iMax,:])")
 
-		Q0 = weno5_flux(q0)
+		Q0 = weno5_flux_difference(q0)
 		break
 		q1 = q0 - 1/2 * dt/dx * Q0
 		
 		boundaries!(q1)
 
-		Q1 = weno5_flux(q1)
+		Q1 = weno5_flux_difference(q1)
 
 		q2 = q0 - 1/2 * dt/dx * Q1
 
 		boundaries!(q2)
 
-		Q2 = weno5_flux(q2)
+		Q2 = weno5_flux_difference(q2)
 
 		q3 = q0 - dt/dx * Q2
 
 		boundaries!(q3)
 
-		Q3 = weno5_flux(q3)
+		Q3 = weno5_flux_difference(q3)
 
-		q = 1/3 * (-q0 + q1 + 2*q2 + q3 - 1/2 * dt/dx * Q3)
+		q = 1/3 * (-q0 + q1 + 2*q2 + q3 - 1/2 * dt/dx * Q3) # J&W eq. 2.22-1
 
 		boundaries!(q)
 
@@ -80,9 +83,9 @@ function WENO5()
 	return
 end
 
-function weno5_flux(q::Array{Float64,2})
+function weno5_flux_difference(q::Array{Float64,2})
 	
-	u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S),P(E)]  
+	u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
 
 	println("iMin u : $(u[iMin,:])")
 	println("128  u : $(u[128,:])")
@@ -112,6 +115,11 @@ function weno5_flux(q::Array{Float64,2})
 
 	dF = weno5_interpolation(q,a,F,L,R)
 	
+	println("1    dF : $(dF[1,:])")
+	println("2    dF : $(dF[2,:])")
+	println("3    dF : $(dF[3,:])")
+	println("4    dF : $(dF[4,:])")
+	println("5    dF : $(dF[5,:])")
 	println("iMin dF : $(dF[iMin,:])")
 	println("128  dF : $(dF[128, :])")
 	println("iMax dF : $(dF[iMax,:])")
@@ -129,8 +137,17 @@ function weno5_flux(q::Array{Float64,2})
 		Q[i,8] = dF[i,7] - dF[i-1,7]
 	end
 
+	println("1    Q : $(Q[1,:])")
+	println("2    Q : $(Q[2,:])")
+	println("3    Q : $(Q[3,:])")
 	println("iMin Q : $(Q[iMin,:])")
 	println("128  Q : $(Q[128, :])")
+	println("129  Q : $(Q[129, :])")
+	println("130  Q : $(Q[130, :])")
+	println("131  Q : $(Q[131, :])")
+	println("132  Q : $(Q[132, :])")
+	println("133  Q : $(Q[133, :])")
+	println("134  Q : $(Q[134, :])")
 	println("iMax Q : $(Q[iMax,:])")
 
 	return, Q
@@ -148,7 +165,7 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 
 	dF = zeros(Float64, N, 7)
 
-	for i=iMin:iMax
+	for i=iMin-1:iMax
 		
 		for m=1:7
 
@@ -242,8 +259,6 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 		if drho <= 1e-12
 			rho = 0.5 * (u[i,1] + u[i+1,1])
 		else 
-			rhol = u[i,1]
-			rhor = u[i+1,1]
 			rho = abs(gam0*drho/(u[i+1,1]^gam0 - u[i,1]^gam0))^(1/gamma)
 		end
 
@@ -468,23 +483,23 @@ function compute_fluxes_S(q::Array{Float64,2}, u::Array{Float64,2})
 	F[:,4] = q[:,4].*u[:,2] - u[:,5].*u[:,7] 	# mvy*vx - Bx*Bz
 	F[:,5] = u[:,6].*u[:,2] - u[:,5].*u[:,3] 	# By*vx - Bx*vy
 	F[:,6] = u[:,7].*u[:,2] - u[:,5].*u[:,4] 	# Bz*vx - Bx*vz
-	F[:,7] = u[:,8].*u[:,2]	               		# S*vx
+	F[:,7] = q[:,8].*u[:,2]	               		# S*vx
 
 	return F
 end
 
-# E fluxes are different from S fluxes only at 2nd and 7th component
 function compute_fluxes_E(q::Array{Float64,2}, u::Array{Float64,2})
 	
-	F = compute_fluxes_S(q,u)
+	F = compute_fluxes_S(q,u) # all but 2 & 7 are the same !
 	
 	pt = u[:,9] + (u[:,5].^2+u[:,6].^2+u[:,7].^2)/2 # total pressure from E
 
 	vB = u[:,2].*u[:,5] + u[:,3].*u[:,6] + u[:,4].*u[:,7] # v*B
 
 	# replace only components 2 & 7
+
 	F[:,2] = q[:,2].*u[:,2] + pt - u[:,5].^2	# mvx*vx + Ptot - Bx^2
-	F[:,7] = (u[:,9]+pt).*u[:,2] - u[:,5].*vB	# (EE+Ptot)*vx - Bx * v*B
+	F[:,7] = (q[:,9]+pt).*u[:,2] - u[:,5].*vB	# (EE+Ptot)*vx - Bx * v*B
 
 	return F
 end
@@ -640,11 +655,11 @@ function boundaries!(q::Array{Float64,2})
 
 	for m=1:8
 			
-		for i=1:iMin
+		for i=1:iMin-1
 			q[i,m] = q[iMin,m]
 		end
 
-		for i=iMax:N
+		for i=iMax+1:N
 			q[i,m] = q[iMax,m]
 		end
 	end # m
@@ -665,7 +680,7 @@ function initial_conditions()
 
 	for i = 1:N 
 
-		if i < N/2
+		if i < N/2+2
 			q0[i,:] = ql
 		else
 			q0[i,:] = qr
