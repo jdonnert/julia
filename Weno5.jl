@@ -40,35 +40,75 @@ function WENO5()
 		dt = courFac*dx/vxmax
 
 		println("$nstep : t = $t dt = $dt vmax=$vxmax")
-
-		q0 = copy(q)
 		
-		println("1 q    : $(q0[1,:])")
-		println("2 q    : $(q0[2,:])")
-		println("3 q    : $(q0[3,:])")
-		println("iMin q : $(q0[iMin,:])")
-		println("128  q : $(q0[128,:])")
-		println("iMax q : $(q0[iMax,:])")
+		# E
 
-		Q0 = weno5_flux_difference(q0)
+		q0_E = copy(q[:,1:8])
+		q0_E[:,8] = q[:,9] 
+		Q0_E = weno5_flux_difference_E(q0_E)
+		q1_E = q0_E - 1/2 * dt/dx * Q0_E
+
+		println("q1_E[1]       : $(q1_E[1,:])")
+		println("q1_E[2]       : $(q1_E[2,:])")
+		println("q1_E[3]       : $(q1_E[3,:])")
+		println("q1_E[4]       : $(q1_E[4,:])")
+		println("q1_E[5]       : $(q1_E[5,:])")
+
+		println("q1_E[129]     : $(q1_E[129,:])")
+		println("q1_E[130]     : $(q1_E[130,:])")
+		println("q1_E[131]     : $(q1_E[131,:])")
+		println("q1_E[132]     : $(q1_E[132,:])")
+		println("q1_E[133]     : $(q1_E[133,:])")
+		
+		println("q1_E[iMax]    : $(q1_E[iMax,:])")
+		println("q1_E[iMax+1]  : $(q1_E[iMax+1,:])")
+		println("q1_E[iMax+2]  : $(q1_E[iMax+2,:])")
+		println("q1_E[iMax+3]  : $(q1_E[iMax+3,:])")
+
+		# S
+
+		q0_S = copy(q[:,1:8])
+		Q0_S = weno5_flux_difference_S(q0_S)
+		q1_S = q0_S - 1/2 * dt/dx * Q0_S
+		
+		println("q1_S[1]       : $(q1_S[1,:])")
+		println("q1_S[2]       : $(q1_S[2,:])")
+		println("q1_S[3]       : $(q1_S[3,:])")
+		println("q1_S[4]       : $(q1_S[4,:])")
+		println("q1_S[5]       : $(q1_S[5,:])")
+
+		println("q1_S[129]     : $(q1_S[129,:])")
+		println("q1_S[130]     : $(q1_S[130,:])")
+		println("q1_S[131]     : $(q1_S[131,:])")
+		println("q1_S[132]     : $(q1_S[132,:])")
+		println("q1_S[133]     : $(q1_S[133,:])")
+		
+		println("q1_S[iMax]    : $(q1_S[iMax,:])")
+		println("q1_S[iMax+1]  : $(q1_S[iMax+1,:])")
+		println("q1_S[iMax+2]  : $(q1_S[iMax+2,:])")
+		println("q1_S[iMax+3]  : $(q1_S[iMax+3,:])")
+	
 		break
-		q1 = q0 - 1/2 * dt/dx * Q0
-		
+
+		q1 = q0_S
+		bad = find(q1_S[:,8] .< q1_E[:,8])
+		q1[bad,8] = q1_E[bad,8]
+
 		boundaries!(q1)
 
-		Q1 = weno5_flux_difference(q1)
+		Q1 = weno5_flux_difference_S(q1)
 
 		q2 = q0 - 1/2 * dt/dx * Q1
 
 		boundaries!(q2)
 
-		Q2 = weno5_flux_difference(q2)
+		Q2 = weno5_flux_difference_S(q2)
 
 		q3 = q0 - dt/dx * Q2
 
 		boundaries!(q3)
 
-		Q3 = weno5_flux_difference(q3)
+		Q3 = weno5_flux_difference_S(q3)
 
 		q = 1/3 * (-q0 + q1 + 2*q2 + q3 - 1/2 * dt/dx * Q3) # J&W eq. 2.22-1
 
@@ -83,75 +123,7 @@ function WENO5()
 	return
 end
 
-function weno5_flux_difference(q::Array{Float64,2})
-	
-	u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
 
-	println("iMin u : $(u[iMin,:])")
-	println("128  u : $(u[128,:])")
-	println("iMax u : $(u[iMax,:])")
-
-	a = compute_eigenvalues_S(u)
-
-	println("iMin a : $(a[iMin,:])")
-	println("128  a : $(a[128,:])")
-	println("iMax a : $(a[iMax,:])")
-
-	F = compute_fluxes_S(q,u)
- 
-	println("iMin F : $(F[iMin,:])")
-	println("128  F : $(F[128,:])")
-	println("iMax F : $(F[iMax,:])")
-
-	L, R = compute_eigenvectors_S(q,u,F)
-	
-	println("iMin L : $(L[iMin,:,1])")
-	println("128  L : $(L[128,: ,1])")
-	println("iMax L : $(L[iMax,:,1])")
-
-	println("iMin R : $(R[iMin,:,1])")
-	println("128  R : $(R[128,:, 1])")
-	println("iMax R : $(R[iMax,:,1])")
-
-	dF = weno5_interpolation(q,a,F,L,R)
-	
-	println("1    dF : $(dF[1,:])")
-	println("2    dF : $(dF[2,:])")
-	println("3    dF : $(dF[3,:])")
-	println("4    dF : $(dF[4,:])")
-	println("5    dF : $(dF[5,:])")
-	println("iMin dF : $(dF[iMin,:])")
-	println("128  dF : $(dF[128, :])")
-	println("iMax dF : $(dF[iMax,:])")
-
-	Q = zeros(Float64, N, 8)
-
-	for i=iMin:iMax
-		Q[i,1] = dF[i,1] - dF[i-1,1]
-		Q[i,2] = dF[i,2] - dF[i-1,2]
-		Q[i,3] = dF[i,3] - dF[i-1,3]
-		Q[i,4] = dF[i,4] - dF[i-1,4]
-		Q[i,5] = 0
-		Q[i,6] = dF[i,5] - dF[i-1,5]
-		Q[i,7] = dF[i,6] - dF[i-1,6]
-		Q[i,8] = dF[i,7] - dF[i-1,7]
-	end
-
-	println("1    Q : $(Q[1,:])")
-	println("2    Q : $(Q[2,:])")
-	println("3    Q : $(Q[3,:])")
-	println("iMin Q : $(Q[iMin,:])")
-	println("128  Q : $(Q[128, :])")
-	println("129  Q : $(Q[129, :])")
-	println("130  Q : $(Q[130, :])")
-	println("131  Q : $(Q[131, :])")
-	println("132  Q : $(Q[132, :])")
-	println("133  Q : $(Q[133, :])")
-	println("134  Q : $(Q[134, :])")
-	println("iMax Q : $(Q[iMax,:])")
-
-	return, Q
-end
 
 function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 							 F::Array{Float64,2}, L::Array{Float64,3},
@@ -169,9 +141,9 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 		
 		for m=1:7
 
-			amax = max(abs(a[i,m]),abs(a[i+1,m]))
+			amax = max(abs(a[i,m]),abs(a[i+1,m])) # J&W eq 2.10
 
-			for ks=1:6
+			for ks=1:6 # stencil i-2 -> i+3
 
 				Fsk[ks] = L[i,m,1]*F[i-3+ks,1] + L[i,m,2]*F[i-3+ks,2] +
                      	  L[i,m,3]*F[i-3+ks,3] + L[i,m,4]*F[i-3+ks,4] +
@@ -189,9 +161,9 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 				dqsk[ks] = qsk[ks+1] - qsk[ks]
 			end
 
-			first = (-Fsk[2]+7*Fsk[3]+7*Fsk[4]-Fsk[5]) / 12
+			first = (-Fsk[2]+7*Fsk[3]+7*Fsk[4]-Fsk[5]) / 12 # J&W eq 2.11
 
-            aterm = (dFsk[1] + amax*dqsk[1]) / 2
+			aterm = (dFsk[1] + amax*dqsk[1]) / 2 # Lax-Friedrichs J&W eq. 2.10 & 2.16+
             bterm = (dFsk[2] + amax*dqsk[2]) / 2
             cterm = (dFsk[3] + amax*dqsk[3]) / 2
             dterm = (dFsk[4] + amax*dqsk[4]) / 2
@@ -207,10 +179,10 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
             omega0 = alpha0/(alpha0+alpha1+alpha2)
             omega2 = alpha2/(alpha0+alpha1+alpha2)
 
-            second = omega0*(aterm - 2*bterm + cterm)/3 + 
+            second = omega0*(aterm - 2*bterm + cterm)/3 + # phi_N(f+), J&W eq 2.3 + 1
                   	(omega2-0.5)*(bterm - 2*cterm + dterm)/6
 
-            aterm = (dFsk[5] - amax*dqsk[5]) / 2
+            aterm = (dFsk[5] - amax*dqsk[5]) / 2 # Lax-Friedrichs J&W eq. 2.10 & 2.16+
             bterm = (dFsk[4] - amax*dqsk[4]) / 2
             cterm = (dFsk[3] - amax*dqsk[3]) / 2  
             dterm = (dFsk[2] - amax*dqsk[2]) / 2
@@ -226,15 +198,15 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
             omega0 = alpha0/(alpha0 + alpha1 + alpha2)
             omega2 = alpha2/(alpha0 + alpha1 + alpha2)
 
-            third  = omega0*(aterm - 2*bterm + cterm) / 3 +
+            third  = omega0*(aterm - 2*bterm + cterm) / 3 +		# phi_N(f-)
                     (omega2 - 0.5)*(bterm - 2*cterm + dterm) / 6
 
-            Fs[m] = first - second + third
+            Fs[m] = first - second + third # J&W eq. 2.16 + 1
 		end # m
 	
 		for m=1:7
 			
-			dF[i,m] = Fs[1]*R[i,m,1] + Fs[2]*R[i,m,2] +
+			dF[i,m] = Fs[1]*R[i,m,1] + Fs[2]*R[i,m,2] + # J&W eq. 2.17
                    	  Fs[3]*R[i,m,3] + Fs[4]*R[i,m,4] +
                       Fs[5]*R[i,m,5] + Fs[6]*R[i,m,6] +
                       Fs[7]*R[i,m,7]
@@ -244,6 +216,117 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 
 	return dF
 end # weno5_interpolation()
+
+function compute_eigenvalues(u::Array{Float64,2})
+
+	a = zeros(Float64, N, 7) # eigenvalues cell center
+
+	B2  = u[:,5].^2 + u[:,6].^2 + u[:,7].^2
+	vdB = u[:,2].*u[:,5] + u[:,3].*u[:,6] + u[:,4].*u[:,7]
+
+	cs2 = gamma * abs(u[:,8]./u[:,1])
+	bad = find(cs2 .< 0)
+	cs2[bad] = 0
+
+	bbn2 = B2./u[:,1]
+	bnx2 = u[:,5].^2./u[:,1]
+
+	root = safe_sqrt((bbn2+cs2).^2 - 4*bnx2.*cs2)
+
+	lf = safe_sqrt((bbn2+cs2+root)/2)
+	la = safe_sqrt(bnx2)
+	ls = safe_sqrt((bbn2+cs2-root)/2)
+
+	a[:,1] = u[:,2] - lf 
+	a[:,2] = u[:,2] - la
+	a[:,3] = u[:,2] - ls
+	a[:,4] = u[:,2]
+	a[:,5] = u[:,2] + ls
+	a[:,6] = u[:,2] + la
+	a[:,7] = u[:,2] + lf
+
+	return a #  J&W 2.27+1
+
+end
+
+# SS - Code
+
+function weno5_flux_difference_S(q::Array{Float64,2})
+		
+####println("q0[1]    : $(q[1,:])")
+####println("q0[2]    : $(q[2,:])")
+####println("q0[3]    : $(q[3,:])")
+####println("q0[iMin] : $(q[iMin,:])")
+####println("q0[128]  : $(q[128,:])")
+####println("q0[iMax] : $(q[iMax,:])")
+
+	u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
+
+####println("iMin u : $(u[iMin,:])")
+####println("128  u : $(u[128,:])")
+####println("iMax u : $(u[iMax,:])")
+
+	a = compute_eigenvalues(u)
+
+####println("iMin a : $(a[iMin,:])")
+####println("128  a : $(a[128,:])")
+####println("iMax a : $(a[iMax,:])")
+
+	F = compute_fluxes_S(q,u)
+ 
+####println("iMin F : $(F[iMin,:])")
+####println("128  F : $(F[128,:])")
+####println("iMax F : $(F[iMax,:])")
+
+	L, R = compute_eigenvectors_S(q,u,F)
+	
+####println("iMin L : $(L[iMin,:,1])")
+####println("128  L : $(L[128,: ,1])")
+####println("iMax L : $(L[iMax,:,1])")
+
+####println("iMin R : $(R[iMin,:,1])")
+####println("128  R : $(R[128,:, 1])")
+####println("iMax R : $(R[iMax,:,1])")
+
+	dF = weno5_interpolation(q,a,F,L,R)
+	
+####println("1    dF : $(dF[1,:])")
+####println("2    dF : $(dF[2,:])")
+####println("3    dF : $(dF[3,:])")
+####println("4    dF : $(dF[4,:])")
+####println("5    dF : $(dF[5,:])")
+####println("iMin dF : $(dF[iMin,:])")
+####println("128  dF : $(dF[128, :])")
+####println("iMax dF : $(dF[iMax,:])")
+
+	Q = zeros(Float64, N, 8)
+
+	for i=iMin:iMax
+		Q[i,1] = dF[i,1] - dF[i-1,1]
+		Q[i,2] = dF[i,2] - dF[i-1,2]
+		Q[i,3] = dF[i,3] - dF[i-1,3]
+		Q[i,4] = dF[i,4] - dF[i-1,4]
+		Q[i,5] = 0
+		Q[i,6] = dF[i,5] - dF[i-1,5]
+		Q[i,7] = dF[i,6] - dF[i-1,6]
+		Q[i,8] = dF[i,7] - dF[i-1,7]
+	end
+
+####println("1    Q : $(Q[1,:])")
+####println("2    Q : $(Q[2,:])")
+####println("3    Q : $(Q[3,:])")
+####println("iMin Q : $(Q[iMin,:])")
+####println("128  Q : $(Q[128, :])")
+####println("129  Q : $(Q[129, :])")
+####println("130  Q : $(Q[130, :])")
+####println("131  Q : $(Q[131, :])")
+####println("132  Q : $(Q[132, :])")
+####println("133  Q : $(Q[133, :])")
+####println("134  Q : $(Q[134, :])")
+####println("iMax Q : $(Q[iMax,:])")
+
+	return Q
+end
 
 function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2}, 
 								F::Array{Float64,2}) # Roe solver
@@ -271,7 +354,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 		Bz = 0.5 * (u[i,7] + u[i+1,7])
 
 		pg = 0.5 * (u[i,8] + u[i+1,8])
-		SS = pg/rho^(gamma-1) 
+		S = pg/rho^(gamma-1) 
 
 		v2 = vx^2 + vy^2 + vz^2
 		B2 = Bx^2 + By^2 + Bz^2
@@ -321,7 +404,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         L[i,1,4] =  as*ls*btz*sgnBx
         L[i,1,5] =  cs*as*bty*sqrt_rho
         L[i,1,6] =  cs*as*btz*sqrt_rho
-        L[i,1,7] =  af*cs2*rho/(gamma*SS)
+        L[i,1,7] =  af*cs2*rho/(gamma*S)
             
         L[i,2,1] =  btz*vy-bty*vz
         L[i,2,2] =  0
@@ -337,7 +420,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         L[i,3,4] = -af*lf*btz*sgnBx
         L[i,3,5] = -cs*af*bty*sqrt_rho
         L[i,3,6] = -cs*af*btz*sqrt_rho
-        L[i,3,7] =  as*cs2*rho/(gamma*SS)
+        L[i,3,7] =  as*cs2*rho/(gamma*S)
             
         L[i,4,1] =  1/gamma
         L[i,4,2] =  0
@@ -345,7 +428,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         L[i,4,4] =  0
         L[i,4,5] =  0
         L[i,4,6] =  0
-        L[i,4,7] = -rho/(gamma*SS)
+        L[i,4,7] = -rho/(gamma*S)
             
         L[i,5,1] =  as*(gamS*cs2-ls*vx) - af*lf*(bty*vy+btz*vz)*sgnBx
         L[i,5,2] =  as*ls
@@ -353,7 +436,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         L[i,5,4] =  af*lf*btz*sgnBx
         L[i,5,5] = -cs*af*bty*sqrt_rho
         L[i,5,6] = -cs*af*btz*sqrt_rho
-        L[i,5,7] =  as*cs2*rho/(gamma*SS)
+        L[i,5,7] =  as*cs2*rho/(gamma*S)
             
         L[i,6,1] =  btz*vy-bty*vz
         L[i,6,2] =  0
@@ -369,7 +452,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         L[i,7,4] = -as*ls*btz*sgnBx
         L[i,7,5] =  cs*as*bty*sqrt_rho
         L[i,7,6] =  cs*as*btz*sqrt_rho
-        L[i,7,7] =  af*cs2*rho/(gamma*SS)
+        L[i,7,7] =  af*cs2*rho/(gamma*S)
 
         for m=1:7
             L[i,1,m] *= 0.5/cs2
@@ -386,7 +469,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,4,1] = af*vz + as*ls*btz*sgnBx
         R[i,5,1] = cs*as*bty/sqrt_rho
         R[i,6,1] = cs*as*btz/sqrt_rho
-        R[i,7,1] = af*SS/rho
+        R[i,7,1] = af*S/rho
             
         R[i,1,2] =  0
         R[i,2,2] =  0
@@ -402,7 +485,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,4,3] =  as*vz - af*lf*btz*sgnBx
         R[i,5,3] = -cs*af*bty/sqrt_rho
         R[i,6,3] = -cs*af*btz/sqrt_rho
-        R[i,7,3] =  as*SS/rho
+        R[i,7,3] =  as*S/rho
             
         R[i,1,4] =  1
         R[i,2,4] =  vx
@@ -410,7 +493,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,4,4] =  vz
         R[i,5,4] =  0
         R[i,6,4] =  0
-        R[i,7,4] =  gam0*SS/rho
+        R[i,7,4] =  gam0*S/rho
             
         R[i,1,5] =  as
         R[i,2,5] =  as*(vx+ls)
@@ -418,7 +501,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,4,5] =  as*vz + af*lf*btz*sgnBx
         R[i,5,5] = -cs*af*bty/sqrt_rho
         R[i,6,5] = -cs*af*btz/sqrt_rho
-        R[i,7,5] =  as*SS/rho
+        R[i,7,5] =  as*S/rho
             
         R[i,1,6] =  0
         R[i,2,6] =  0
@@ -434,7 +517,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,4,7] = af*vz - as*ls*btz*sgnBx
         R[i,5,7] = cs*as*bty/sqrt_rho
         R[i,6,7] = cs*as*btz/sqrt_rho
-        R[i,7,7] = af*SS/rho
+        R[i,7,7] = af*S/rho
 
 		sgnBt = sign(Bz) # enforce continuity
 
@@ -462,15 +545,6 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 	return L, R
 end # compute_eigenvectors_S
 
-function compute_eigenvectors_E(q::Array{Float64,2},u::Array{Float64,2})
-
-	L = zeros(Float64, N, 8)
-	R = zeros(Float64, N, 8)
-
-	return L, R
-end
-
-# flux computation for the S version
 function compute_fluxes_S(q::Array{Float64,2}, u::Array{Float64,2})
 	
 	F = zeros(Float64, N, 7)
@@ -488,99 +562,11 @@ function compute_fluxes_S(q::Array{Float64,2}, u::Array{Float64,2})
 	return F
 end
 
-function compute_fluxes_E(q::Array{Float64,2}, u::Array{Float64,2})
-	
-	F = compute_fluxes_S(q,u) # all but 2 & 7 are the same !
-	
-	pt = u[:,9] + (u[:,5].^2+u[:,6].^2+u[:,7].^2)/2 # total pressure from E
 
-	vB = u[:,2].*u[:,5] + u[:,3].*u[:,6] + u[:,4].*u[:,7] # v*B
-
-	# replace only components 2 & 7
-
-	F[:,2] = q[:,2].*u[:,2] + pt - u[:,5].^2	# mvx*vx + Ptot - Bx^2
-	F[:,7] = (q[:,9]+pt).*u[:,2] - u[:,5].*vB	# (EE+Ptot)*vx - Bx * v*B
-
-	return F
-end
-
-function safe_sqrt(x::Array{Float64,1})
-	
-	bad = find(x .< 0)
-	x[bad] = 0
-
-	return sqrt(x)
-end
-
-# eigenvalues are at cell centers
-function compute_eigenvalues_S(u::Array{Float64,2})
-
-	a = zeros(Float64, N, 8) # eigenvalues - Entropy version
-
-	B2  = u[:,5].^2 + u[:,6].^2 + u[:,7].^2
-	vdB = u[:,2].*u[:,5] + u[:,3].*u[:,6] + u[:,4].*u[:,7]
-
-	cs2 = gamma * abs(u[:,8]./u[:,1])
-	bad = find(cs2 .< 0)
-	cs2[bad] = 0
-
-	bbn2 = B2./u[:,1]
-	bnx2 = u[:,5].^2./u[:,1]
-
-	root = safe_sqrt((bbn2+cs2).^2 - 4*bnx2.*cs2)
-
-	lf = safe_sqrt((bbn2+cs2+root)/2)
-	la = safe_sqrt(bnx2)
-	ls = safe_sqrt((bbn2+cs2-root)/2)
-
-	a[:,1] = u[:,2] - lf
-	a[:,2] = u[:,2] - la
-	a[:,3] = u[:,2] - ls
-	a[:,4] = u[:,2]
-	a[:,5] = u[:,2] + ls
-	a[:,6] = u[:,2] + la
-	a[:,7] = u[:,2] + lf
-
-	return a
-end
-
-function compute_eigenvalues_E(u::Array{Float64,2})
-
-	a = zeros(Float64, N, 8) # eigenvalues - Energy version
-
-	B2  = u[:,5].^2 + u[:,6].^2 + u[:,7].^2
-	vdB = u[:,2].*B[:,5] + u[:,3].*B[:,6] + u[:,4].*B[:,7]
-
-	ptE = u[:,9] + B2/2
-	
-	cs2 = gamma * abs(ptE./u[:,1])
-	bad = find(cs2 .< 0)
-	cs2[bad] = 0
-
-	bbn2 = B2./rho
-	bnx2 = u[:,5].^2./u[:,1]
-
-	root = safe_sqrt((bbn2+cs2).^2 - 4*bnx2.*cs2)
-
-	lf = safe_sqrt(bbn2+cs2+root)
-	la = safe_sqrt(bnx2)
-	ls = safe_sqrt(0.5*(bbn2+cs2-root))
-
-	a[:,1] = u[:,2] - lf
-	a[:,2] = u[:,2] - la
-	a[:,3] = u[:,2] - ls
-	a[:,4] = u[:,2]
-	a[:,5] = u[:,2] + lf
-	a[:,6] = u[:,2] + la
-	a[:,7] = u[:,2] + ls
-
-	return a
-end
 
 function compute_primitive_variables_S(q::Array{Float64,2})
 
-	u = copy(q)  # = [rho,Mx,My,Mz,Bx,By,Bz,S,E]
-	u = u[:,1:8] # = [rho,Mx,My,Mz,Bx,By,Bz,S]
+	u = copy(q)  # = [rho,Mx,My,Mz,Bx,By,Bz,S] 
 	
 	u[:,2] ./= u[:,1] # vx = Mx/rho
 	u[:,3] ./= u[:,1] # vy
@@ -591,14 +577,329 @@ function compute_primitive_variables_S(q::Array{Float64,2})
 
 	u[:,8] .*= u[:,1].^(gamma-1)	# Pressure from S
 
-	return u # = [rho,vx,vy,vz,Bx,By,Bz,P(S)]
+	return u # = [rho,vx,vy,vz,Bx,By,Bz,P(S)]; J&W eq. 2.23
+end
+
+# EE - code
+
+function weno5_flux_difference_E(q::Array{Float64,2})
+		
+    println("q0[1]      : $(q[1,:])")
+    println("q0[2]      : $(q[2,:])")
+    println("q0[3]      : $(q[3,:])")
+    println("q0[4]      : $(q[4,:])")
+    println("q0[132]    : $(q[132,:])")
+    println("q0[133]    : $(q[133,:])")
+    println("q0[iMax]   : $(q[iMax,:])")
+	
+	u = compute_primitive_variables_E(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
+	
+
+#   println("iMin u : $(u[iMin,:])")
+#   println("132  u : $(u[132,:])")
+#   println("133  u : $(u[133,:])")
+#   println("iMax u : $(u[iMax,:])")
+
+	a = compute_eigenvalues(u)
+
+	#println("iMin a : $(a[iMin,:])")
+	#println("132  a : $(a[132,:])")
+	#println("133  a : $(a[133,:])")
+	#println("iMax a : $(a[iMax,:])")
+
+
+	F = compute_fluxes_E(q,u)
+ 
+    #println("iMin F : $(F[iMin,:])")
+	#println("132  F : $(F[132,:])")
+	#println("133  F : $(F[133,:])")
+    #println("iMax F : $(F[iMax,:])")
+
+	L, R = compute_eigenvectors_E(q,u,F)
+	
+   #println("iMin L : $(L[iMin,:,1])")
+   #println("132  L : $(L[132, :,1])")
+   #println("133  L : $(L[133, :,1])")
+   #println("iMax L : $(L[iMax,:,1])")
+
+   #println("iMin R : $(R[iMin,:,1])")
+   #println("132  R : $(R[132, :,1])")
+   #println("133  R : $(R[133, :,1])")
+   #println("iMax R : $(R[iMax,:,1])")
+
+   dF = weno5_interpolation(q,a,F,L,R)
+
+   #println("1    dF : $(dF[1,:])")
+   #println("2    dF : $(dF[2,:])")
+   #println("3    dF : $(dF[3,:])")
+   #println("4    dF : $(dF[4,:])")
+   #println("5    dF : $(dF[5,:])")
+   #println("iMin dF : $(dF[iMin,:])")
+   #println("132  dF : $(dF[132, :])")
+   #println("133  dF : $(dF[133, :])")
+   #println("iMax dF : $(dF[iMax,:])")
+
+	Q = zeros(Float64, N, 8)
+
+	for i=iMin:iMax
+		Q[i,1] = dF[i,1] - dF[i-1,1]
+		Q[i,2] = dF[i,2] - dF[i-1,2]
+		Q[i,3] = dF[i,3] - dF[i-1,3]
+		Q[i,4] = dF[i,4] - dF[i-1,4]
+		Q[i,5] = 0
+		Q[i,6] = dF[i,5] - dF[i-1,5]
+		Q[i,7] = dF[i,6] - dF[i-1,6]
+		Q[i,8] = dF[i,7] - dF[i-1,7]
+	end
+
+    println("1    Q : $(Q[1,:])")
+    println("2    Q : $(Q[2,:])")
+    println("3    Q : $(Q[3,:])")
+    println("iMin Q : $(Q[iMin,:])")
+    println("128  Q : $(Q[128, :])")
+    println("129  Q : $(Q[129, :])")
+    println("130  Q : $(Q[130, :])")
+    println("131  Q : $(Q[131, :])")
+    println("132  Q : $(Q[132, :])")
+    println("133  Q : $(Q[133, :])")
+    println("134  Q : $(Q[134, :])")
+    println("iMax Q : $(Q[iMax,:])")
+stop
+	return Q
+end
+
+function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2}, 
+								F::Array{Float64,2}) # Roe solver
+
+	L = zeros(Float64, N,7,7) # left hand eigenvectors
+	R = zeros(Float64, N,7,7) # right hand eigenvectors
+
+	#Threads.@threads
+	for i=2:N-1 # main loop !
+		
+		rho = (u[i,1] + u[i+1,1]) / 2 # to cell boundary
+
+		vx = 0.5 * (u[i,2] + u[i+1,2])
+		vy = 0.5 * (u[i,3] + u[i+1,3])
+		vz = 0.5 * (u[i,4] + u[i+1,4])
+
+		Bx = 0.5 * (u[i,5] + u[i+1,5])
+		By = 0.5 * (u[i,6] + u[i+1,6])
+		Bz = 0.5 * (u[i,7] + u[i+1,7])
+
+		E = 0.5 * (q[i,8] + q[i+1,8]) # q NOT u
+
+		v2 = vx^2 + vy^2 + vz^2
+		B2 = Bx^2 + By^2 + Bz^2
+
+		pg = (gamma-1) * (E - 0.5 * (rho*v2 + B2) )
+
+		cs2 = max(0, gamma*abs(pg/rho))
+		cs = sqrt(cs2)
+		bbn2 = B2/rho
+		bnx2 = Bx^2/rho
+
+		root = max(0, (bbn2+cs2)^2 - 4*bnx2*cs2)
+		root = sqrt(root)
+
+		lf = sqrt(max(0, (bbn2+cs2+root)/2)) 	# fast mode
+		la = sqrt(max(0, bnx2))					# alven mode
+		ls = sqrt(max(0, (bbn2+cs2-root)/2))	# slow mode
+
+		# resolve degeneracies
+
+		Bt2 = By^2 + Bz^2
+		sgnBx = sign(Bx) # -1, 0, 1
+
+		bty = 1/sqrt(2)
+		btz = 1/sqrt(2)
+
+		if Bt2 >= 1e-30
+			bty = By/sqrt(Bt2)
+			btz = Bz/sqrt(Bt2)
+		end
+
+		af = 1
+		as = 1
+
+		dl2 = lf^2 - ls^2
+
+		if dl2 >= 1e-30
+			af = sqrt(max(0,cs2 - ls^2))/sqrt(dl2)
+			as = sqrt(max(0,lf^2 - cs2))/sqrt(dl2)
+		end
+
+		# eigenvectors E version
+
+		sqrt_rho = sqrt(rho)
+
+		L[i,1,1] = af*(gam1*v2 + lf*vx) - as*ls*(bty*vy + btz*vz)*sgnBx
+        L[i,1,2] = af*(gam0*vx - lf)
+        L[i,1,3] = gam0*af*vy + as*ls*bty*sgnBx
+        L[i,1,4] = gam0*af*vz + as*ls*btz*sgnBx
+        L[i,1,5] = gam0*af*By + cs*as*bty*sqrt_rho
+        L[i,1,6] = gam0*af*Bz + cs*as*btz*sqrt_rho
+        L[i,1,7] = -gam0*af
+                                                                   
+        L[i,2,1] = btz*vy - bty*vz
+        L[i,2,2] = 0
+        L[i,2,3] = -btz
+        L[i,2,4] = bty
+        L[i,2,5] = -btz*sgnBx*sqrt_rho
+        L[i,2,6] = bty*sgnBx*sqrt_rho
+        L[i,2,7] = 0
+                                                                   
+        L[i,3,1] = as*(gam1*v2 + ls*vx) + af*lf*(bty*vy + btz*vz)*sgnBx
+        L[i,3,2] = gam0*as*vx - as*ls
+        L[i,3,3] = gam0*as*vy - af*lf*bty*sgnBx
+        L[i,3,4] = gam0*as*vz - af*lf*btz*sgnBx
+        L[i,3,5] = gam0*as*By - cs*af*bty*sqrt_rho 
+        L[i,3,6] = gam0*as*Bz - cs*af*btz*sqrt_rho 
+        L[i,3,7] = -gam0*as
+                                                                   
+        L[i,4,1] = -cs2/gam0 - 0.5*v2
+        L[i,4,2] = vx
+        L[i,4,3] = vy
+        L[i,4,4] = vz
+        L[i,4,5] = By
+        L[i,4,6] = Bz
+        L[i,4,7] = -1
+                                                                   
+        L[i,5,1] = as*(gam1*v2 - ls*vx) - af*lf*(bty*vy + btz*vz)*sgnBx
+        L[i,5,2] = as*(gam0*vx+ls)
+        L[i,5,3] = gam0*as*vy + af*lf*bty*sgnBx
+        L[i,5,4] = gam0*as*vz + af*lf*btz*sgnBx
+        L[i,5,5] = gam0*as*By - cs*af*bty*sqrt_rho 
+        L[i,5,6] = gam0*as*Bz - cs*af*btz*sqrt_rho 
+        L[i,5,7] = -gam0*as
+                                                                   
+        L[i,6,1] = btz*vy - bty*vz
+        L[i,6,2] = 0
+        L[i,6,3] = -btz
+        L[i,6,4] = bty
+        L[i,6,5] = btz*sgnBx*sqrt_rho
+        L[i,6,6] = -bty*sgnBx*sqrt_rho
+        L[i,6,7] = 0
+                                                                   
+        L[i,7,1] = af*(gam1*v2 - lf*vx) + as*ls*(bty*vy + btz*vz)*sgnBx
+        L[i,7,2] = af*(gam0*vx + lf)
+        L[i,7,3] = gam0*af*vy - as*ls*bty*sgnBx
+        L[i,7,4] = gam0*af*vz - as*ls*btz*sgnBx
+        L[i,7,5] = gam0*af*By + cs*as*bty*sqrt_rho
+        L[i,7,6] = gam0*af*Bz + cs*as*btz*sqrt_rho
+        L[i,7,7] = -gam0*af
+
+        for m=1:7
+            L[i,1,m] *= 0.5/cs2
+            L[i,2,m] *= 0.5
+            L[i,3,m] *= 0.5/cs2 
+			L[i,4,m] *= -gam0/cs2
+            L[i,5,m] *= 0.5/cs2
+            L[i,6,m] *= 0.5
+        	L[i,7,m] *= 0.5/cs2
+        end
+
+		R[i,1,1] = af
+        R[i,2,1] = af*(vx - lf)
+        R[i,3,1] = af*vy + as*ls*bty*sgnBx
+        R[i,4,1] = af*vz + as*ls*btz*sgnBx
+        R[i,5,1] = cs*as*bty/sqrt_rho
+        R[i,6,1] = cs*as*btz/sqrt_rho
+        R[i,7,1] = af*(lf^2 - lf*vx + 0.5*v2 - gam2*cs2) + as*ls*(bty*vy + btz*vz)*sgnBx 
+           
+        R[i,1,2] = 0
+        R[i,2,2] = 0
+        R[i,3,2] = -btz
+        R[i,4,2] = bty
+        R[i,5,2] = -btz*sgnBx/sqrt_rho
+        R[i,6,2] = bty*sgnBx/sqrt_rho
+        R[i,7,2] = bty*vz - btz*vy
+                                                      
+        R[i,1,3] = as
+        R[i,2,3] = as*(vx-ls)
+        R[i,3,3] = as*vy - af*lf*bty*sgnBx
+        R[i,4,3] = as*vz - af*lf*btz*sgnBx
+        R[i,5,3] = -cs*af*bty/sqrt_rho
+        R[i,6,3] = -cs*af*btz/sqrt_rho
+        R[i,7,3] = as*(ls^2 - ls*vx + 0.5*v2 - gam2*cs2) - af*lf*(bty*vy + btz*vz)*sgnBx
+            
+        R[i,1,4] = 1
+        R[i,2,4] = vx
+        R[i,3,4] = vy
+        R[i,4,4] = vz
+        R[i,5,4] = 0
+        R[i,6,4] = 0
+        R[i,7,4] = 0.5*v2
+                                                       
+        R[i,1,5] =  as
+        R[i,2,5] =  as*(vx + ls)
+        R[i,3,5] =  as*vy + af*lf*bty*sgnBx
+        R[i,4,5] =  as*vz + af*lf*btz*sgnBx
+        R[i,5,5] = -cs*af*bty/sqrt_rho
+        R[i,6,5] = -cs*af*btz/sqrt_rho
+        R[i,7,5] =  as*(ls^2 + ls*vx + 0.5*v2 - gam2*cs2) + af*lf*(bty*vy + btz*vz)*sgnBx
+            
+        R[i,1,6] =  0
+        R[i,2,6] =  0
+        R[i,3,6] = -btz
+        R[i,4,6] =  bty
+        R[i,5,6] =  btz*sgnBx/sqrt_rho
+        R[i,6,6] = -bty*sgnBx/sqrt_rho
+        R[i,7,6] =  bty*vz - btz*vy
+                                                      
+        R[i,1,7] = af
+        R[i,2,7] = af*(vx + lf)
+        R[i,3,7] = af*vy - as*ls*bty*sgnBx
+        R[i,4,7] = af*vz - as*ls*btz*sgnBx
+        R[i,5,7] = cs*as*bty/sqrt_rho
+        R[i,6,7] = cs*as*btz/sqrt_rho
+        R[i,7,7] = af*(lf^2 + lf*vx + 0.5*v2 - gam2*cs2) - as*ls*(bty*vy + btz*vz)*sgnBx
+
+		sgnBt = sign(Bz) # enforce continuity
+
+		if By != 0
+			sgnBt = sign(Bx)
+		end
+
+		if cs >= la
+			for m=1:7
+				L[i,3,m] *= sgnBt 
+				L[i,5,m] *= sgnBt 
+				R[i,m,3] *= sgnBt 
+				R[i,m,5] *= sgnBt 
+			end
+		else
+			for m=1:7
+				L[i,1,m] *= sgnBt 
+				L[i,7,m] *= sgnBt 
+				R[i,m,1] *= sgnBt 
+				R[i,m,7] *= sgnBt 
+			end
+		end
+	end  # for i
+
+	return L, R
+end # compute_eigenvectors_E
+
+function compute_fluxes_E(q::Array{Float64,2}, u::Array{Float64,2})
+	
+	F = compute_fluxes_S(q,u) # all but 2 & 7 are the same !
+	
+	pt = u[:,8] + (u[:,5].^2+u[:,6].^2+u[:,7].^2)/2 # total pressure from E
+
+	vB = u[:,2].*u[:,5] + u[:,3].*u[:,6] + u[:,4].*u[:,7] # v*B
+
+	# replace only components 2 & 7
+
+	F[:,2] = q[:,2].*u[:,2] + pt - u[:,5].^2	# mvx*vx + Ptot - Bx^2
+	F[:,7] = (q[:,8]+pt) .* u[:,2] - u[:,5].*vB	# (E+Ptot)*vx - Bx * v*B
+
+	return F
 end
 
 function compute_primitive_variables_E(q::Array{Float64,2})
 
-	u = copy(q)  	# = [rho,Mx,My,Mz,Bx,By,Bz,S,E]
-	u[:,8] = u[:,9] 
-	u = u[:,1:8] 	# = [rho,Mx,My,Mz,Bx,By,Bz,E]
+	u = copy(q)  	# = [rho,Mx,My,Mz,Bx,By,Bz,E]
 	
 	u[:,2] ./= u[:,1] # vx = Mx/rho
 	u[:,3] ./= u[:,1] # vy
@@ -610,7 +911,7 @@ function compute_primitive_variables_E(q::Array{Float64,2})
 	u[:,8] -= 0.5 * (u[:,1].*v2 + B2) # Pressure from E
 	u[:,8] .*= (gamma-1)
 
-	return u 		# = [rho,vx,vy,vz,Bx,By,Bz,P(E)]
+	return u # = [rho,vx,vy,vz,Bx,By,Bz,P(E)] ; B&W eq. 2.23
 end
 
 function compute_global_vmax(q::Array{Float64,2})
@@ -695,10 +996,24 @@ function state2conserved(rho, vx, vy, vz, Bx, By, Bz, P)
 	v2 = vx^2 + vy^2 + vz^2
 	B2 = Bx^2 + By^2 + Bz^2
 
-	EE = P / (gamma-1) + 0.5 * (rho*v2+B2)
-	SS = P / rho^(gamma-1)
+	E = P / (gamma-1) + 0.5 * (rho*v2+B2)
+	S = P / rho^(gamma-1)
 
-	return [rho, rho*vx, rho*vy, rho*vz, Bx, By, Bz, SS, EE]
+	return [rho, rho*vx, rho*vy, rho*vz, Bx, By, Bz, S, E]
+end
+
+function safe_sqrt(x::Array{Float64,1})
+	
+	bad = find(x .< 0)
+	x[bad] = 0
+
+	nBad = size(bad,1)
+
+	if nBad > 0
+		println("nBad = $nBad ")
+	end
+
+	return sqrt(x)
 end
 
 #end # module
