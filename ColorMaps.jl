@@ -11,7 +11,7 @@ export ColMap, Arr2Img, ShowColorMaps
 """
 Show all available perceptual color maps.
 """
-function ShowColMaps()
+function ShowColorMaps()
 
 	arr = zeros(Float64, 1, 256)
 	

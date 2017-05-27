@@ -1,6 +1,9 @@
 #module WENO5 			# Jiang & Wu 1999 JCAP 150
 
+#using GR
 using Plots
+using ColorBrewer
+using LaTeXStrings
 
 const tmax = 0.2		# end of time integration
 
@@ -12,7 +15,7 @@ const iMin = 1 + NBnd	# grid loop minimum without boundaries
 const iMax = N - NBnd	# grid loop maximum without boundaries
 
 const xsize = 1
-const dx = xsize/N
+const dx = xsize/(N - 2*NBnd)
 
 const gamma = 5.0/3.0	# adiabatic index & friends
 const gam0 = 1-gamma
@@ -28,10 +31,20 @@ export WENO5
 
 function WENO5()
 
+	#pyplot(foreground_color_grid=:grey, markerstrokewidth = 0)
+
 	q = initial_conditions() # [rho,Mx,My,Mz,Bx,By,Bz,S,E]
 	
+	x = linspace(0,xsize,N)
+
 	t = 0
 	nstep = 0
+
+	fc = 0
+
+	#anim = Animation()
+
+	#inline("mov")
 
 	while t < tmax 	# explicit fourth order Runge-Kutta (Shu & Osher 1988)
 
@@ -41,30 +54,64 @@ function WENO5()
 
 		println("$nstep : t = $t dt = $dt vmax=$vxmax")
 		
-		q, idx = classical_WENO_step(q,dt)
+		q, idx = classical_RK4_step(q,dt)
 
-	    println("q[1]       : $(q[1,:])")
-	    println("q[130]     : $(q[130,:])")
-	    println("q[131]     : $(q[131,:])")
-	    println("q[132]     : $(q[132,:])")
-	    println("q[133]     : $(q[133,:])")
-	    println("q[iMax+3]  : $(q[iMax+3,:])")
-	    println("Replaced $(size(idx,1)):  $idx")
-	    println("===========================================")
+	   #println("q[1]       : $(q[1,:])")
+	   #println("q[130]     : $(q[130,:])")
+	   #println("q[131]     : $(q[131,:])")
+	   #println("q[132]     : $(q[132,:])")
+	   #println("q[133]     : $(q[133,:])")
+	   #println("q[iMax+3]  : $(q[iMax+3,:])")
+	   #println("Replaced $(size(idx,1)):  $idx")
+	   #println("===========================================")
+
 		t += dt
 
 		nstep += 1
 
-		if nstep == 2 
-			break
+		filename = "./frames/"*itoa(nstep,3)*".pdf"
+
+		table = readdlm("output_"*itoa(nstep,3))
+
+		#clearws()
+
+		ymin = [0.9, -0.1, -0.3 , -0.2, 0.4, 0.9, 0.3, 0.8 ]
+		ymax = [1.7,  1.4,  0.4,   0.9, 0.6, 1.7, 0.9, 1.6 ]
+		ylab = ["Density","Vx","Vy","Vz","Bx","By","Bz","S"]
+
+		for i=1:8
+		
+			#subplot(3, 3, i)
+
+			#setmarkersize(0.3)
+	
+			plot(x, q[:,i],	"b",
+				 x, table[:,i], "gd",
+				 x[idx], q[idx,i],"rd"; 
+				ylim=[ymin[i],ymax[i]],xlim=[0,1], xlabel="x", 
+				ylabel=ylab[i])
+
+			s = @sprintf("step %d, t = %5.3f" , nstep, t)
+			textext(0.75,0.1, s)
+	
 		end
+	
+		#updatews()
+
+#	plot(x, q[:,:], layout=8, legend=false,xlim=(0,1),ylim=(-0.3,2))
+#	scatter!(x[idx], q[idx,:], markershape = :circle, markersize = 2, markercolor = :red)
+#	frame(anim)
 
 	end
+
+	#GR.show()
+
+	#gif(anim, "test.gif", fps=15)
 	
 	return
 end
 
-function classical_WENO_step(q::Array{Float64,2},dt::Float64)
+function classical_RK4_step(q::Array{Float64,2},dt::Float64)
 
 		q0_E = copy(q[:,1:8])
 		q0_E[:,8] = q[:,9] # 8th component is E here !
@@ -79,21 +126,6 @@ function classical_WENO_step(q::Array{Float64,2},dt::Float64)
 
 		boundaries!(q1)
 
-	####println("q1[1]       : $(q1[1,:])")
-	####println("q1[2]       : $(q1[2,:])")
-	####println("q1[3]       : $(q1[3,:])")
-	####println("q1[4]       : $(q1[4,:])")
-	####println("q1[130]     : $(q1[130,:])")
-	####println("q1[131]     : $(q1[131,:])")
-	####println("q1[132]     : $(q1[132,:])")
-	####println("q1[133]     : $(q1[133,:])")
-	####println("q1[iMax]    : $(q1[iMax,:])")
-	####println("q1[iMax+1]  : $(q1[iMax+1,:])")
-	####println("q1[iMax+2]  : $(q1[iMax+2,:])")
-	####println("q1[iMax+3]  : $(q1[iMax+3,:])")
-	####println("Replaced $(size(idx,1)):  $idx")
-	####println("===========================================")
-
 		q1_E = copy(q1[:,1:8])
 		q1_E[:,8] = q1[:,9]
 		Q1_E = weno5_flux_difference_E(q1_E)
@@ -106,21 +138,6 @@ function classical_WENO_step(q::Array{Float64,2},dt::Float64)
 		q2, idx = ES_Switch(q2_E, q2_S)
 
 		boundaries!(q2)
-
-	   #println("q2[1]       : $(q2[1,:])")
-	   #println("q2[2]       : $(q2[2,:])")
-	   #println("q2[3]       : $(q2[3,:])")
-	   #println("q2[4]       : $(q2[4,:])")
-	   #println("q2[130]     : $(q2[130,:])")
-	   #println("q2[131]     : $(q2[131,:])")
-	   #println("q2[132]     : $(q2[132,:])")
-	   #println("q2[133]     : $(q2[133,:])")
-	   #println("q2[iMax]    : $(q2[iMax,:])")
-	   #println("q2[iMax+1]  : $(q2[iMax+1,:])")
-	   #println("q2[iMax+2]  : $(q2[iMax+2,:])")
-	   #println("q2[iMax+3]  : $(q2[iMax+3,:])")
-	   #println("Replaced $(size(idx,1)):  $idx")
-	   #println("===========================================")
 
 		q2_E = copy(q2[:,1:8])
 		q2_E[:,8] = q2[:,9]
@@ -135,21 +152,6 @@ function classical_WENO_step(q::Array{Float64,2},dt::Float64)
 
 		boundaries!(q3)
 
-	####println("q3[1]       : $(q3[1,:])")
-	####println("q3[2]       : $(q3[2,:])")
-	####println("q3[3]       : $(q3[3,:])")
-	####println("q3[4]       : $(q3[4,:])")
-	####println("q3[130]     : $(q3[130,:])")
-	####println("q3[131]     : $(q3[131,:])")
-	####println("q3[132]     : $(q3[132,:])")
-	####println("q3[133]     : $(q3[133,:])")
-	####println("q3[iMax]    : $(q3[iMax,:])")
-	####println("q3[iMax+1]  : $(q3[iMax+1,:])")
-	####println("q3[iMax+2]  : $(q3[iMax+2,:])")
-	####println("q3[iMax+3]  : $(q3[iMax+3,:])")
-	####println("Replaced $(size(idx,1)):  $idx")
-	####println("===========================================")
-
 		q3_E = copy(q3[:,1:8])
 		q3_E[:,8] = q3[:,9]
 		Q3_E = weno5_flux_difference_E(q3_E)
@@ -162,21 +164,6 @@ function classical_WENO_step(q::Array{Float64,2},dt::Float64)
 		q4, idx = ES_Switch(q4_E, q4_S)
 
 		boundaries!(q4)
-
-	   #println("q4[1]       : $(q4[1,:])")
-	   #println("q4[2]       : $(q4[2,:])")
-	   #println("q4[3]       : $(q4[3,:])")
-	   #println("q4[4]       : $(q4[4,:])")
-	   #println("q4[130]     : $(q4[130,:])")
-	   #println("q4[131]     : $(q4[131,:])")
-	   #println("q4[132]     : $(q4[132,:])")
-	   #println("q4[133]     : $(q4[133,:])")
-	   #println("q4[iMax]    : $(q4[iMax,:])")
-	   #println("q4[iMax+1]  : $(q4[iMax+1,:])")
-	   #println("q4[iMax+2]  : $(q4[iMax+2,:])")
-	   #println("q4[iMax+3]  : $(q4[iMax+3,:])")
-	   #println("Replaced $(size(idx,1)):  $idx")
-	   #println("===========================================")
 
 	return q4, idx
 end
@@ -351,56 +338,19 @@ end
 
 function weno5_flux_difference_S(q::Array{Float64,2})
 		
-   #println("q0[1]    : $(q[1,:])")
-   #println("q0[2]    : $(q[2,:])")
-   #println("q0[3]    : $(q[3,:])")
-   #println("q0[iMin] : $(q[iMin,:])")
-   #println("q0[131]  : $(q[131,:])")
-   #println("q0[132]  : $(q[132,:])")
-   #println("q0[iMax] : $(q[iMax,:])")
-
 	u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
-
-####println("iMin u : $(u[iMin,:])")
-####println("128  u : $(u[128,:])")
-####println("iMax u : $(u[iMax,:])")
 
 	a = compute_eigenvalues(u)
 
-####println("iMin a : $(a[iMin,:])")
-####println("128  a : $(a[128,:])")
-####println("iMax a : $(a[iMax,:])")
-
 	F = compute_fluxes_S(q,u)
- 
-####println("iMin F : $(F[iMin,:])")
-####println("128  F : $(F[128,:])")
-####println("iMax F : $(F[iMax,:])")
 
 	L, R = compute_eigenvectors_S(q,u,F)
 	
-####println("iMin L : $(L[iMin,:,1])")
-####println("128  L : $(L[128,: ,1])")
-####println("iMax L : $(L[iMax,:,1])")
-
-####println("iMin R : $(R[iMin,:,1])")
-####println("128  R : $(R[128,:, 1])")
-####println("iMax R : $(R[iMax,:,1])")
-
 	dF = weno5_interpolation(q,a,F,L,R)
 	
-####println("1    dF : $(dF[1,:])")
-####println("2    dF : $(dF[2,:])")
-####println("3    dF : $(dF[3,:])")
-####println("4    dF : $(dF[4,:])")
-####println("5    dF : $(dF[5,:])")
-####println("iMin dF : $(dF[iMin,:])")
-####println("128  dF : $(dF[128, :])")
-####println("iMax dF : $(dF[iMax,:])")
-
 	Q = zeros(Float64, N, 8)
 
-	for i=iMin:iMax
+	@inbounds @simd for i=iMin:iMax
 		Q[i,1] = dF[i,1] - dF[i-1,1]
 		Q[i,2] = dF[i,2] - dF[i-1,2]
 		Q[i,3] = dF[i,3] - dF[i-1,3]
@@ -411,19 +361,6 @@ function weno5_flux_difference_S(q::Array{Float64,2})
 		Q[i,8] = dF[i,7] - dF[i-1,7]
 	end
 
-####println("1    Q : $(Q[1,:])")
-####println("2    Q : $(Q[2,:])")
-####println("3    Q : $(Q[3,:])")
-####println("iMin Q : $(Q[iMin,:])")
-####println("128  Q : $(Q[128, :])")
-####println("129  Q : $(Q[129, :])")
-####println("130  Q : $(Q[130, :])")
-####println("131  Q : $(Q[131, :])")
-####println("132  Q : $(Q[132, :])")
-####println("133  Q : $(Q[133, :])")
-####println("134  Q : $(Q[134, :])")
-####println("iMax Q : $(Q[iMax,:])")
-
 	return Q
 end
 
@@ -433,7 +370,6 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 	L = zeros(Float64, N,7,7) # left hand eigenvectors
 	R = zeros(Float64, N,7,7) # right hand eigenvectors
 
-	#Threads.@threads
 	for i=2:N-1 # main loop !
 		
 		drho = abs(u[i,1] - u[i+1,1]) # to cell boundary
@@ -1068,7 +1004,7 @@ function boundaries!(q::Array{Float64,2})
 	return q
 end
 
-function initial_conditions()
+function initial_conditions() # RJ95 2a
 
 	sqrt4p = sqrt(4.0*pi)
 	
