@@ -28,7 +28,7 @@ function ShowColorMaps()
 		imin = (i-1)*1+1
 		imax = i*1
 			
-		img[:,imin:imax] = Arr2Img(arr, cmap)
+		img[:,imin:imax] = Arr2Img(arr, cmap, range=[0,1])
 	end
 
 	plot(img, show=true, size=(1024,1024),title="Perceptual Color Maps",margin=5mm )
