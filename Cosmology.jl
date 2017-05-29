@@ -6,10 +6,10 @@ sets: CC, WMAP7, Planck15
 	using Cosmology
 
 	cp = CC				# copy concordance cosmology
-	println(dHubble(cp))
+	println(Hubble_Distance(cp))
 
 	cp.Hbpar = 71.5 	# change Hubble parameter
-	println(dHubble(cp))
+	println(Hubble_Distance(cp))
 
 	Show(cp)
 
