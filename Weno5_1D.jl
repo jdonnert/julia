@@ -27,9 +27,9 @@ const courFac = 0.8		# Courant Factor
 
 const eps = 1e-6 		# Jiang & Wu eq 2.3++ 
 
-export WENO5
+export WENO5_1D
 
-function WENO5()
+function WENO5_1D()
 
 	#pyplot(foreground_color_grid=:grey, markerstrokewidth = 0)
 

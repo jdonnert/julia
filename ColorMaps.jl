@@ -105,6 +105,8 @@ function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 		good = find(isfinite(arr))
 		
 		range = [ minimum(arr[good]), maximum(arr[good]) ]
+
+		println("Autorange: $range")
 	end
 
 	if log == true

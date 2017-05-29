@@ -1,6 +1,5 @@
 module FitsView # plot an image and do a lot of stuff with it using a single inter
-				# face. Hacking is for the brave, even though I am trying to keep
-				# it simple.
+				# face. Hacking is for the brave. Don't use it anymore.
 
 using FITSIO
 using Colors
