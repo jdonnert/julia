@@ -31,16 +31,12 @@ export WENO5_1D
 
 function WENO5_1D()
 
-	#pyplot(foreground_color_grid=:grey, markerstrokewidth = 0)
-
 	q = initial_conditions() # [rho,Mx,My,Mz,Bx,By,Bz,S,E]
 	
 	x = linspace(0,xsize,N)
 
 	t = 0
 	nstep = 0
-
-	fc = 0
 
 	#anim = Animation()
 
