@@ -407,6 +407,10 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 		Bt2 = By^2 + Bz^2
 		sgnBx = sign(Bx) # -1, 0, 1
 
+        if sgnBx == 0
+            sgnBx = 1
+        end
+
 		bty = 1/sqrt(2)
 		btz = 1/sqrt(2)
 
@@ -555,6 +559,10 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 		if By != 0
 			sgnBt = sign(Bx)
 		end
+
+        if sgnBt == 0
+            sgnBt = 1
+        end
 
 		if cs >= la
 			for m=1:7
@@ -743,6 +751,10 @@ function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2},
 		Bt2 = By^2 + Bz^2
 		sgnBx = sign(Bx) # -1, 0, 1
 
+        if sgnBx == 0
+            sgnBx = 1
+        end
+
 		bty = 1/sqrt(2)
 		btz = 1/sqrt(2)
 
@@ -892,6 +904,10 @@ function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2},
 		if By != 0
 			sgnBt = sign(Bx)
 		end
+
+        if sgnBt == 0
+            sgnBt =1
+        end
 
 		if cs >= la
 			for m=1:7
