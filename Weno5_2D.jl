@@ -67,6 +67,7 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     fsy = SharedArray{Float64}(Nx, Ny) * 0
     gsx = SharedArray{Float64}(Nx, Ny) * 0
 
+#printq(q0,bxb0,byb0,fsy,gsx)
     # step 1
     q0_E = copy(q0[:,:,[1,2,3,4,5,6,7,9]])  # 8th component is E here
     dFx0_E, fsy_E, tmp = weno5_flux_difference_E(q0_E)
@@ -80,8 +81,13 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     gsx_E = transpose(gsx_E)
     
     q1_E = q0_E - 1/2 * dt/dx * dFx0_E  - 1/2 * dt/dy * dFy0_E
+ 
+    boundaries!(q1_E)
+    q1_E, bxb1_E, byb1_E = fluxCT(q1_E, bxb0, byb0, fsy_E, gsx_E, dt, 1/2)
+    boundaries!(q1_E)
 
 printq(q1_E,bxb0,byb0,fsy_E,gsx_E)
+@assert false
 
     q0_S = copy(q0[:,:,[1,2,3,4,5,6,7,8]])  # 8th component is S here
     dFx0_S, fsy_S, tmp = weno5_flux_difference_S(q0_S)
@@ -95,17 +101,21 @@ printq(q1_E,bxb0,byb0,fsy_E,gsx_E)
     gsx_S = transpose(gsx_S)
 
     q1_S = q0_S - 1/2 * dt/dx * dFx0_S - 1/2 * dt/dy * dFy0_S 
-    
 
+    boundaries!(q1_S)
+    bxb1_S, byb1_S = fluxCT(q1_S, bxb0, byb0, fsy_S, gsx_S)
+    boundaries!(q1_S)
 
-printq(q1_S,bxb0,byb0,fsy_S,gsx_S)
+printq(q1_S,bxb1_S,byb1_S,fsy_S,gsx_S)
+
+    q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E, gsx_E) 
+
+    boundaries!(q1)
+    bxb1, byb1 = fluxCT(q1, bxb0, byb0, fsy, gsx)
+    boundaries!(q1)
+
+printq(q1, bxb0,byb0, fsy,gsx)
 @assert false
-
-    #q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E, gsx_E) 
-
-    #bxb1 = copy(bxb0)
-    #byb1 = copy(byb0)
-    #fluxCT!(q1, bxb1, byb1, fsy, gsx)
 
     # step 2
     # step 3
@@ -118,33 +128,48 @@ printq(q1_S,bxb0,byb0,fsy_S,gsx_S)
 
 end # classical_RK4_step
 
-function fluxCT!(q::Array{Float64,3}, bxb::Array{Float64,2}, byb::Array{Float64,2}, 
-                fsy::Array{Float64,2}, gsx::Array{Float64,2}, dt::Float64)
+function fluxCT(q::Array{Float64,3}, bxb0::Array{Float64,2}, byb0::Array{Float64,2}, 
+                fsy::Array{Float64,2}, gsx::Array{Float64,2}, dt::Float64, RK4prefac::Float64)
 
-    fsy[1,:] = fsy[NBnd,:]
-    fsy[Nx-NBnd+1,:] = fsy[Nx-NBnd,:]
+    for j = 2:Ny-1
+        fsy[NBnd-1,j] = fsy[NBnd,j]
+        fsy[Nx-NBnd+1,j] = fsy[Nx,j]
+    end
 
-    gsx[:,1] = gsx[:, NBnd]
-    gsx[:,Nx-NBnd+1] = gsx[:, Nx-NBnd]
+    @inbounds @simd for i = 2:Nx-1
+        gsx[i,2] = gsx[i,NBnd]
+        gsx[i,Ny-NBnd+1] = gsx[i,Ny]
+    end
 
-    Ox = zeros(Nx, Ny)
+    Ox = SharedArray{Float64}(Nx, Ny) .* 0
 
-    for j = 1:Ny-1
-        @inbounds @simd for i = 1:Nx-1
+    for j = 2:Ny-1
+        @inbounds @simd for i = 2:Nx-1
             Ox[i,j] = 0.5 * (gsx[i,j] + gsx[i+1,j] - fsy[i,j] - fsy[i,j+1])
         end
     end
 
-    q1 = copy(q0)
+    bxb1 = SharedArray{Float64}(Nx, Ny) .* 0
+    byb1 = SharedArray{Float64}(Nx, Ny) .* 0
+    q1 = copy(q)
 
-    for j = 2:Ny
+    for j = 2:Ny-1
         @inbounds @simd for i = 2:Nx-1
-            bxb[i,j] -= dt/dy * (Ox[i,j] - Ox[i,j-1])
-            byb[i,j] -= dt/dx * (Ox[i,j] - Ox[i-1,j])
+            bxb1[i,j] = bxb0[i,j] - RK4prefac*dt/dy * (Ox[i,j] - Ox[i,j-1])
+            byb1[i,j] = byb0[i,j] + RK4prefac*dt/dx * (Ox[i,j] - Ox[i-1,j])
         end
     end
 
-    return
+    #  interpolate face centered bfld to centre, 4th order
+
+    for j = NBnd+1:Ny-2
+        @inbounds @simd for i = NBnd+1:Nx-2
+            q1[i,j,5] = (-bxb1[i-2,j] + 9*bxb1[i-1,j] + 9*bxb1[i,j]- bxb1[i+1,j])/16
+            q1[i,j,6] = (-byb1[i,j-2] + 9*byb1[i,j-1] + 9*byb1[i,j]- byb1[i,j+1])/16
+        end
+    end
+
+    return q1, bxb1, byb1
 end # fluxCT
 
 # Entropy (S) code
@@ -159,7 +184,7 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
     bsz = SharedArray{Float64}(Nqx, Nqy) * 0
 
     #@sync @parallel 
-    for j = NBnd:Nqy-NBnd  # 1D along x for fixed y
+    for j = 1:Nqy  # 1D along x for fixed y
 
         q = q_2D[:,j,:]
 
@@ -172,12 +197,12 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
 	    L, R = compute_eigenvectors_S(q,u,F)
 	
         if (j == 4) 
-            @printf "S : j = %g " j
+            @printf "S : j = %g \n" j
         end
 
 	    dF = weno5_interpolation(q,a,F,L,R,j)
 
-       for i = NBnd+1:Nqx-NBnd+1
+       for i = NBnd+1:Nqx-NBnd # only data domain
     		dq[i,j,1] = dF[i,1] - dF[i-1,1]
     		dq[i,j,2] = dF[i,2] - dF[i-1,2]
     		dq[i,j,3] = dF[i,3] - dF[i-1,3]
@@ -188,7 +213,7 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
 	    	dq[i,j,8] = dF[i,7] - dF[i-1,7]
 	    end
 
-        for i = NBnd-1:Nqx-NBnd
+        for i = NBnd:Nqx-NBnd
             bsy[i,j] = dF[i,5] + 0.5 *(u[i,5]*u[i,3] + u[i+1,5]*u[i+1,3])
             bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
         end
@@ -473,7 +498,7 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
     bsz = SharedArray{Float64}(Nqx, Nqy) * 0
 
     #@sync @parallel 
-    for j = NBnd:Nqy-NBnd  # 1D along x for fixed y
+    for j = 1:Nqy  # 1D along x for fixed y
 
         q = q_2D[:,j,:]
 
@@ -484,14 +509,14 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
 	    F = compute_fluxes_E(q,u)
 
         if (j == 4) 
-            @printf "E : j = %g " j
+            @printf "E : j = %g \n" j
         end
 
 	    L, R = compute_eigenvectors_E(q,u,F, j)
 	
 	    dF = weno5_interpolation(q,a,F,L,R,j)
 
-       for i = NBnd+1:Nqx-NBnd+1
+       for i = NBnd+1:Nqx-NBnd
     		dq[i,j,1] = dF[i,1] - dF[i-1,1]
     		dq[i,j,2] = dF[i,2] - dF[i-1,2]
     		dq[i,j,3] = dF[i,3] - dF[i-1,3]
@@ -502,12 +527,13 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
 	    	dq[i,j,8] = dF[i,7] - dF[i-1,7]
 	    end
 
-        for i = NBnd-1:Nqx-NBnd
+        for i = NBnd:Nqx-NBnd
             bsy[i,j] = dF[i,5] + 0.5 *(u[i,5]*u[i,3] + u[i+1,5]*u[i+1,3])
             bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
         end
     end
-
+    @printf "%g %g  \n" bsy[2,1]  bsy[1,2]
+    
     return dq, bsy, bsz
 end
 
@@ -809,31 +835,6 @@ function compute_eigenvalues(u::Array{Float64,2})
 
 end
 
-function ES_Switch(q_E::Array{Float64,3}, q_S::Array{Float64,3}, fsy_S::Array{Float64,2}, 
-                   gsx_S::Array{Float64,2}, fsy_E::Array{Float64,2}, gsx_E::Array{Float64,2})
-	
-	q_SE = copy(q_E)
-	q_SE[:,8] = E2S(q_E) 		# convert q(E) to q(S(E))
-
-	dS = abs(q_SE[:,8] - q_S[:,8])
-
-	bad = find(dS .>= 1e-5)
-
-	q = zeros(N, 9)
-	q[:,1:8] = q_S				# use q(S) by default
-	q[bad,1:8] = q_SE[bad,:]  	# replace q at the bad locations
-	q[:,9] = S2E(q)
-
-    fsy = copy(fsy_S)
-    fsy[bad] = fsy_E[bad]
-
-    gsx = copy(gsx_S)
-    gsx[bad] = gsx_E[bad]
-
-	return q, fsy, gsx, bad
-end
-
-
 function face_centered_bfld(q::Array{Float64,3})
 
     bxb = SharedArray{Float64}(Nx, Ny) * 0 # needed on 2:N-2 only
@@ -841,8 +842,8 @@ function face_centered_bfld(q::Array{Float64,3})
 
     @sync @parallel for j = 2:Ny-2 # fourth order interpolation
         @inbounds @simd for i = 2:Nx-2
-           bxb[i,j] = (-q[i-1,j,5] + 9*q[i,j,5] + 9*q[i+1,j,5] - q[i+2,j,5]) /16
-           byb[i,j] = (-q[i,j-1,6] + 9*q[i,j,6] + 9*q[i,j+1,6] - q[i,j+2,6]) /16
+           bxb[i,j] = (-q[i-1,j,5] + 9*q[i,j,5] + 9*q[i+1,j,5] - q[i+2,j,5])/16
+           byb[i,j] = (-q[i,j-1,6] + 9*q[i,j,6] + 9*q[i,j+1,6] - q[i,j+2,6])/16
         end
     end
 
@@ -872,32 +873,54 @@ function boundaries!(q::Array{Float64,3})
     return
 end
 
-function ES_Switch(q_E::Array{Float64,3}, q_S::Array{Float64,3})
+function ES_Switch(q_E::Array{Float64,3}, q_S::Array{Float64,3}, fsy_S::Array{Float64,2}, 
+                   gsx_S::Array{Float64,2}, fsy_E::Array{Float64,2}, gsx_E::Array{Float64,2})
 	
 	q_SE = copy(q_E)
-	q_SE[:,:,8] = E2S(q_E) 		# convert q(E) to q(S(E))
+    q_SE[:,:,8] = E2S(q_E) 		# convert q(E) to q(S(E))
 
-	dS = abs(q_SE[:,:,8] - q_S[:,:,8])
+printq(q_SE, fsy_S,gsx_S, fsy_S,gsx_S)
+@assert false
 
-	bad = find(dS .>= 1e-5)
+	dS = abs.(q_SE[:,:,8] - q_S[:,:,8])
+	
+    bad = find(dS .>= 1e-5)
+    
+    println(size(dS), size(bad))
 
-	q = zeros(Nx, 9)
+    q = SharedArray{Float64}(Nx,Ny, 9) .* 0
 	q[:,:,1:8] = q_S			# use q(S) by default
-	q[bad,1:8] = q_SE[bad,:]  	# replace q at the bad locations
-	q[:,:,9] = S2E(q)
 
-	return q, bad
+    fsy = copy(fsy_S)
+    gsx = copy(gsx_S)
+
+    #@sync @parallel
+    for j = 2:Ny
+        for i = 2:Nx
+            if dS[i,j] >= 1e-5
+               # println("$i $j $(q_SE[i,j,8]) $(q_S[i,j,8]) ")
+                q[i,j,1:8] = q_SE[i,j,1:8]
+
+                fsy[i,j] = fsy_E[i,j]
+                fsy[i-1,j] = fsy_E[i-1,j]
+                    
+                gsx[i,j] = gsx_E[i,j]       
+                gsx[i,j-1] = gsx_E[i,j-1] # need neighbouring component
+            end
+        end
+    end
+
+    q[:,:,9] = S2E(q) # save E(S) in the 9th component
+
+	return q, fsy, gsx, bad
 end
-
 
 function E2S(qE::Array{Float64,3})
 
-	E = copy(qE[:,:,8])
+	E = qE[:,:,8]
 
 	rho = qE[:,:,1]
-	
     mom2 = qE[:,:,2].^2 + qE[:,:,3].^2 + qE[:,:,4].^2
-	
     B2 = qE[:,:,5].^2 + qE[:,:,6].^2 + qE[:,:,7].^2
 	
 	S = (E - 0.5*mom2./rho - B2/2)*(gam-1)./rho.^(gam-1)
@@ -1163,8 +1186,8 @@ end
 function printq(q::Array{Float64,3}, bxb::Array{Float64,2}, byb::Array{Float64,2},  
                 fsy::Array{Float64,2}, gsx::Array{Float64,2}; ID="")
 
-    xidx = [1,2,3,NBnd+1,Nx/2,Nx-NBnd,Nx/2-1,Nx/2,Nx/2+1,NBnd+1,Nx/2,Nx-NBnd]
-    yidx = [1,2,3,NBnd+1,NBnd+1,NBnd+1,Ny/2,Ny/2,Ny/2,Ny-NBnd,Ny-NBnd,Ny-NBnd]
+    xidx = [1,2,3,NBnd+1,78,79,80,Nx/2,Nx-NBnd,Nx/2-1,Nx/2,Nx/2+1,NBnd+1,Nx/2,Nx-NBnd, 10,10,10]
+    yidx = [1,2,3,NBnd+1,35,35,35,NBnd+1,NBnd+1,Ny/2,Ny/2,Ny/2,Ny-NBnd,Ny-NBnd,Ny-NBnd, 67,68,69]
 
     @printf "%s \n" ID
 
@@ -1174,9 +1197,9 @@ function printq(q::Array{Float64,3}, bxb::Array{Float64,2}, byb::Array{Float64,2
         y = Int64(yidx[i])
 
         @printf "%3i %3i " x-NBnd y-NBnd 
-        @printf "%6.4g%6.4g%6.4g%6.4g" q[x,y,1] q[x,y,2] q[x,y,3] q[x,y,4] 
-        @printf "%6.4g%6.4g%6.4g%6.4g" q[x,y,5] q[x,y,6] q[x,y,7] q[x,y,8] 
-        @printf "%6.4g%6.4g%6.4g%6.4g\n" bxb[x,y] byb[x,y] fsy[x,y] gsx[x,y]
+        @printf "%9.4g%9.4g%9.4g%9.4g" q[x,y,1] q[x,y,2] q[x,y,3] q[x,y,4] 
+        @printf "%9.4g%9.4g%9.4g%9.4g" q[x,y,5] q[x,y,6] q[x,y,7] q[x,y,8] 
+        @printf "%9.4g%9.4g%9.4g%9.4g\n" bxb[x,y] byb[x,y] fsy[x,y] gsx[x,y]
     end
     
     return
@@ -1197,7 +1220,7 @@ function printu(u::Array{Float64,2}; ID="")
 
         @printf "%3i  " x-NBnd 
         @printf "%6.4g%6.4g%6.4g%6.4g" u[x,1] u[x,2] u[x,3] u[x,4] 
-        @printf "%6.4g%6.4g%6.4g%6.4g\n" u[x,5] u[x,6] u[x,7] u[x,8] 
+        @printf "%9.4g%9.4g%9.4g%9.4g\n" u[x,5] u[x,6] u[x,7] u[x,8] 
     end
 
     return
