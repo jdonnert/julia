@@ -36,7 +36,7 @@ function WENO5_2D()
 
     q = initial_conditions() #  q=[rho,vx,vy,vz,Bx,By,Bz,S,E]
 
-    bxb, byb = face_centered_bfld(q)
+    bxb, byb = interpolateB_center2face(q)
 
     boundaries!(q)
 
@@ -60,64 +60,115 @@ function WENO5_2D()
 	return
 
 end # WENO5_2D
-
+"""
+This is the classical Runge-Kutta Scheme, fourth order. 
+Don't be scared, it's straight forward e.g. Shu 1988
+"""
 function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2}, 
                             byb0::Array{Float64,2}, dt::Float64)
 
     fsy = SharedArray{Float64}(Nx, Ny) * 0
     gsx = SharedArray{Float64}(Nx, Ny) * 0
 
-#printq(q0,bxb0,byb0,fsy,gsx)
     # step 1
-    q0_E = copy(q0[:,:,[1,2,3,4,5,6,7,9]])  # 8th component is E here
+
+    q0_E = copy(q0[:,:,[1,2,3,4,5,6,7,9]])                          # 8th component is E here
     dFx0_E, fsy_E, tmp = weno5_flux_difference_E(q0_E)
-    
-    q0_E = rotate_state(q0_E, "fwd")
-
-    dFy0_E, tmp, gsx_E = weno5_flux_difference_E(q0_E)
-
-    q0_E = rotate_state(q0_E, "bwd")                           
-    dFy0_E = rotate_state(dFy0_E, "bwd")                           
-    gsx_E = transpose(gsx_E)
+    q0_E_rot = rotate_state(q0_E, "fwd")                            # x2z, y2x, z2y
+    dFy0_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q0_E_rot)
+    dFy0_E = rotate_state(dFy0_E_rot, "bwd")                        # rotate back                  
+    gsx_E = transpose(gsx_E_rot)
     
     q1_E = q0_E - 1/2 * dt/dx * dFx0_E  - 1/2 * dt/dy * dFy0_E
  
-    boundaries!(q1_E)
-    q1_E, bxb1_E, byb1_E = fluxCT(q1_E, bxb0, byb0, fsy_E, gsx_E, dt, 1/2)
-    boundaries!(q1_E)
+    boundaries!(q1_E, fsy_E, gsx_E)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     # includes shifted fluxes
+    bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)                            # rk4 step of face Bfld 
+    byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
+    q1_E[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
+    boundaries!(q1_E, fsy_E, gsx_E)                                 # complete E state
 
-printq(q1_E,bxb0,byb0,fsy_E,gsx_E)
-@assert false
-
-    q0_S = copy(q0[:,:,[1,2,3,4,5,6,7,8]])  # 8th component is S here
+    q0_S = copy(q0[:,:,[1,2,3,4,5,6,7,8]])                          # 8th component is S here
     dFx0_S, fsy_S, tmp = weno5_flux_difference_S(q0_S)
-
-    q0_S = rotate_state(q0_S, "fwd") # x -> y
-
-    dFy0_S, tmp, gsx_S = weno5_flux_difference_S(q0_S)
-    
-    q0_S = rotate_state(q0_S,"bwd")  # y -> x
-    dFy0_S = rotate_state(dFy0_S,"bwd")
+    q0_S_rot = rotate_state(q0_S, "fwd")                            # x -> y
+    dFy0_S_rot, tmp, gsx_S = weno5_flux_difference_S(q0_S_rot)
+    dFy0_S = rotate_state(dFy0_S_rot,"bwd")
     gsx_S = transpose(gsx_S)
 
     q1_S = q0_S - 1/2 * dt/dx * dFx0_S - 1/2 * dt/dy * dFy0_S 
 
-    boundaries!(q1_S)
-    bxb1_S, byb1_S = fluxCT(q1_S, bxb0, byb0, fsy_S, gsx_S)
-    boundaries!(q1_S)
-
-printq(q1_S,bxb1_S,byb1_S,fsy_S,gsx_S)
+    boundaries!(q1_S, fsy_S, gsx_S)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     # includes shifted fluxes
+    bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)
+    byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
+    q1_S[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
+    boundaries!(q1_S, fsy_S, gsx_S)                                 # complete S state
 
     q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E, gsx_E) 
 
-    boundaries!(q1)
-    bxb1, byb1 = fluxCT(q1, bxb0, byb0, fsy, gsx)
-    boundaries!(q1)
+    boundaries!(q1, fsy, gsx)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         # includes shifted fluxes
+    bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)
+    byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
+    q1[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
+    boundaries!(q1, fsy, gsx)                                       # final state - 1st iteration
 
-printq(q1, bxb0,byb0, fsy,gsx)
-@assert false
+#printq(q1, bxb1, byb1, fsy,gsx)
 
     # step 2
+
+    q1_E = copy(q1[:,:,[1,2,3,4,5,6,7,9]])                          # 8th component is E here
+    dFx1_E, fsy_E, tmp = weno5_flux_difference_E(q1_E)
+    
+    q1_E_rot = rotate_state(q1_E, "fwd")                            # rotate so x=z, y=x, z=y
+
+    dFy1_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q1_E_rot)
+    
+    dFy1_E = rotate_state(dFy1_E_rot, "bwd")                        # rotate back                  
+    gsx_E = transpose(gsx_E_rot)
+    
+    q2_E = q1_E - 1/2 * dt/dx * dFx1_E  - 1/2 * dt/dy * dFy1_E
+ 
+    boundaries!(q2_E, fsy_E, gsx_E)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     # includes shifted fluxes
+    bxb2 = bxb1 - 1/2*dt/dy * (Ox - Oxj)                            # rk4 step of face Bfld 
+    byb2 = byb1 - 1/2*dt/dx * (Oxi - Ox)
+    q2_E[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
+    boundaries!(q2_E, fsy_E, gsx_E)                                 # complete E state
+
+printq(q2_E, bxb2, byb2, fsy_E,gsx_E)
+
+    q1_S = copy(q1[:,:,[1,2,3,4,5,6,7,8]])                          # 8th component is S here
+    dFx1_S, fsy_S, tmp = weno5_flux_difference_S(q1_S)
+    q1_S_rot = rotate_state(q1_S, "fwd")                            # x -> y
+    dFy1_S_rot, tmp, gsx_S = weno5_flux_difference_S(q1_S_rot)
+    dFy1_S = rotate_state(dFy1_S_rot,"bwd")
+    gsx_S = transpose(gsx_S)
+
+    q2_S = q1_S - 1/2 * dt/dx * dFx1_S - 1/2 * dt/dy * dFy1_S 
+
+    boundaries!(q2_S, fsy_S, gsx_S)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     # includes shifted fluxes
+    bxb2 = bxb1 - 1/2*dt/dy * (Ox - Oxj)
+    byb2 = byb1 - 1/2*dt/dx * (Oxi - Ox)
+    q2_S[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
+    boundaries!(q2_S, fsy_S, gsx_S)                                 # complete S state
+
+printq(q2_S, bxb2, byb2, fsy_S,gsx_S)
+
+    q2, fsy, gsx, idx = ES_Switch(q2_E, q2_S, fsy_S, gsx_S, fsy_E, gsx_E) 
+
+    boundaries!(q2, fsy, gsx)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         # includes shifted fluxes
+    bxb2 = bxb1 - 1/2*dt/dy * (Ox - Oxj)
+    byb2 = byb1 - 1/2*dt/dx * (Oxi - Ox)
+    q2[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
+    boundaries!(q2, fsy, gsx)                                       # final state - 2nd iteration
+
+printq(q2, bxb2, byb2, fsy,gsx)
+
+@assert false
+
     # step 3
     # step 4
 
@@ -128,20 +179,11 @@ printq(q1, bxb0,byb0, fsy,gsx)
 
 end # classical_RK4_step
 
-function fluxCT(q::Array{Float64,3}, bxb0::Array{Float64,2}, byb0::Array{Float64,2}, 
-                fsy::Array{Float64,2}, gsx::Array{Float64,2}, dt::Float64, RK4prefac::Float64)
+function corner_fluxes(fsy::Array{Float64,2}, gsx::Array{Float64,2})
 
-    for j = 2:Ny-1
-        fsy[NBnd-1,j] = fsy[NBnd,j]
-        fsy[Nx-NBnd+1,j] = fsy[Nx,j]
-    end
-
-    @inbounds @simd for i = 2:Nx-1
-        gsx[i,2] = gsx[i,NBnd]
-        gsx[i,Ny-NBnd+1] = gsx[i,Ny]
-    end
-
-    Ox = SharedArray{Float64}(Nx, Ny) .* 0
+    Ox  = Array{Float64}(Nx, Ny) .* 0
+    Oxi = Array{Float64}(Nx, Ny) .* 0 # i shifted corner flux Oxi[i,j] = Ox[i-1,j]
+    Oxj = Array{Float64}(Nx, Ny) .* 0 # j shifted corner flux Oxj[i,j] = Ox[i,j-1]
 
     for j = 2:Ny-1
         @inbounds @simd for i = 2:Nx-1
@@ -149,27 +191,28 @@ function fluxCT(q::Array{Float64,3}, bxb0::Array{Float64,2}, byb0::Array{Float64
         end
     end
 
-    bxb1 = SharedArray{Float64}(Nx, Ny) .* 0
-    byb1 = SharedArray{Float64}(Nx, Ny) .* 0
-    q1 = copy(q)
-
     for j = 2:Ny-1
         @inbounds @simd for i = 2:Nx-1
-            bxb1[i,j] = bxb0[i,j] - RK4prefac*dt/dy * (Ox[i,j] - Ox[i,j-1])
-            byb1[i,j] = byb0[i,j] + RK4prefac*dt/dx * (Ox[i,j] - Ox[i-1,j])
+            Oxi[i,j] = Ox[i-1,j]
+            Oxj[i,j] = Ox[i,j-1]
         end
     end
 
-    #  interpolate face centered bfld to centre, 4th order
+    return Ox, Oxi, Oxj
+end
+
+function interpolateB_face2center(bxb::Array{Float64,2}, byb::Array{Float64,2})
+
+    Bxy = SharedArray{Float64}(Nx,Ny,2)
 
     for j = NBnd+1:Ny-2
-        @inbounds @simd for i = NBnd+1:Nx-2
-            q1[i,j,5] = (-bxb1[i-2,j] + 9*bxb1[i-1,j] + 9*bxb1[i,j]- bxb1[i+1,j])/16
-            q1[i,j,6] = (-byb1[i,j-2] + 9*byb1[i,j-1] + 9*byb1[i,j]- byb1[i,j+1])/16
+        @inbounds @simd for i = NBnd+1:Nx-2 # 4th order
+            Bxy[i,j,1] = (-bxb[i-2,j] + 9*bxb[i-1,j] + 9*bxb[i,j]- bxb[i+1,j])/16
+            Bxy[i,j,2] = (-byb[i,j-2] + 9*byb[i,j-1] + 9*byb[i,j]- byb[i,j+1])/16
         end
     end
 
-    return q1, bxb1, byb1
+    return Bxy
 end # fluxCT
 
 # Entropy (S) code
@@ -183,7 +226,6 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
     bsy = SharedArray{Float64}(Nqx, Nqy) * 0
     bsz = SharedArray{Float64}(Nqx, Nqy) * 0
 
-    #@sync @parallel 
     for j = 1:Nqy  # 1D along x for fixed y
 
         q = q_2D[:,j,:]
@@ -497,7 +539,6 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
     bsy = SharedArray{Float64}(Nqx, Nqy) * 0
     bsz = SharedArray{Float64}(Nqx, Nqy) * 0
 
-    #@sync @parallel 
     for j = 1:Nqy  # 1D along x for fixed y
 
         q = q_2D[:,j,:]
@@ -835,12 +876,12 @@ function compute_eigenvalues(u::Array{Float64,2})
 
 end
 
-function face_centered_bfld(q::Array{Float64,3})
+function interpolateB_center2face(q::Array{Float64,3})
 
     bxb = SharedArray{Float64}(Nx, Ny) * 0 # needed on 2:N-2 only
     byb = SharedArray{Float64}(Nx, Ny) * 0
 
-    @sync @parallel for j = 2:Ny-2 # fourth order interpolation
+    for j = 2:Ny-2 # fourth order interpolation
         @inbounds @simd for i = 2:Nx-2
            bxb[i,j] = (-q[i-1,j,5] + 9*q[i,j,5] + 9*q[i+1,j,5] - q[i+2,j,5])/16
            byb[i,j] = (-q[i,j-1,6] + 9*q[i,j,6] + 9*q[i,j+1,6] - q[i,j+2,6])/16
@@ -850,7 +891,7 @@ function face_centered_bfld(q::Array{Float64,3})
     return bxb, byb
 end
 
-function boundaries!(q::Array{Float64,3})
+function boundaries!(q::Array{Float64,3}, fsy::Array{Float64,2},gsx::Array{Float64,2})
 
     for j = 1:Ny
         q[1,j,:] = q[NBnd+1,j,:]
@@ -869,6 +910,16 @@ function boundaries!(q::Array{Float64,3})
         q[i, Ny-1,:] = q[i,Ny-NBnd,:]
         q[i, Ny-2,:] = q[i,Ny-NBnd,:]
     end
+ 
+    for j = 2:Ny-1
+        fsy[NBnd-1,j] = fsy[NBnd,j]
+        fsy[Nx-NBnd+1,j] = fsy[Nx,j]
+    end
+
+    @inbounds @simd for i = 2:Nx-1
+        gsx[i,2] = gsx[i,NBnd]
+        gsx[i,Ny-NBnd+1] = gsx[i,Ny]
+    end
 
     return
 end
@@ -877,36 +928,29 @@ function ES_Switch(q_E::Array{Float64,3}, q_S::Array{Float64,3}, fsy_S::Array{Fl
                    gsx_S::Array{Float64,2}, fsy_E::Array{Float64,2}, gsx_E::Array{Float64,2})
 	
 	q_SE = copy(q_E)
-    q_SE[:,:,8] = E2S(q_E) 		# convert q(E) to q(S(E))
-
-printq(q_SE, fsy_S,gsx_S, fsy_S,gsx_S)
-@assert false
+    q_SE[:,:,8] = E2S(q_E) 		# convert q(E) to q(S(E)) so we can compare the 8th component
 
 	dS = abs.(q_SE[:,:,8] - q_S[:,:,8])
 	
     bad = find(dS .>= 1e-5)
     
-    println(size(dS), size(bad))
-
-    q = SharedArray{Float64}(Nx,Ny, 9) .* 0
-	q[:,:,1:8] = q_S			# use q(S) by default
+    q = Array{Float64}(Nx,Ny, 9) .* 0
+    q[:,:,1:8] = copy(q_S)  	# use q(S) by default
 
     fsy = copy(fsy_S)
     gsx = copy(gsx_S)
-
-    #@sync @parallel
+    
     for j = 2:Ny
         for i = 2:Nx
             if dS[i,j] >= 1e-5
-               # println("$i $j $(q_SE[i,j,8]) $(q_S[i,j,8]) ")
                 q[i,j,1:8] = q_SE[i,j,1:8]
 
                 fsy[i,j] = fsy_E[i,j]
                 fsy[i-1,j] = fsy_E[i-1,j]
                     
                 gsx[i,j] = gsx_E[i,j]       
-                gsx[i,j-1] = gsx_E[i,j-1] # need neighbouring component
-            end
+                gsx[i,j-1] = gsx_E[i,j-1] # need neighbouring component as well
+           end
         end
     end
 
@@ -957,8 +1001,6 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 
 		for m=1:7
 
-			amax = max(abs(a[i,m]),abs(a[i+1,m])) # J&W eq 2.10
-
 			for ks=1:6 # stencil i-2 -> i+3 : 5th order
 
 				Fsk[ks] = L[i,m,1]*F[i-3+ks,1] + L[i,m,2]*F[i-3+ks,2] +
@@ -972,12 +1014,14 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
                      	  L[i,m,7]*q[i-3+ks,8]
 			end # ks
 
+			first = (-Fsk[2]+7*Fsk[3]+7*Fsk[4]-Fsk[5]) / 12 # J&W eq 2.11
+
 			for ks=1:5
 				dFsk[ks] = Fsk[ks+1] - Fsk[ks]
 				dqsk[ks] = qsk[ks+1] - qsk[ks]
 			end
 
-			first = (-Fsk[2]+7*Fsk[3]+7*Fsk[4]-Fsk[5]) / 12 # J&W eq 2.11
+			amax = max(abs(a[i,m]),abs(a[i+1,m])) # J&W eq 2.10
 
 			aterm = (dFsk[1] + amax*dqsk[1]) / 2 # Lax-Friedrichs J&W eq. 2.10 & 2.16+
             bterm = (dFsk[2] + amax*dqsk[2]) / 2
@@ -1020,7 +1064,7 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
             Fs[m] = first - second + third # J&W eq. 2.16 + 1
 		end # m
 	
-		@inbounds @simd for m = 1:7
+		for m = 1:7
 			
 			dF[i,m] = Fs[1]*R[i,m,1] + Fs[2]*R[i,m,2] + # J&W eq. 2.17
                    	  Fs[3]*R[i,m,3] + Fs[4]*R[i,m,4] +
@@ -1082,8 +1126,8 @@ function compute_global_vmax(q::Array{Float64,3})
     vxmax = SharedArray{Float64}(Nx, Ny)
     vymax = SharedArray{Float64}(Nx, Ny)
 
-    @sync @parallel for j = jMin:jMax # Jiang & Wu after eq 2.24
-		for i = iMin:iMax
+    for j = jMin:jMax # Jiang & Wu after eq 2.24
+		@inbounds @simd for i = iMin:iMax
 			
 			rho = (q[i,j,1] + q[i+1,j,1])/2
            
@@ -1191,15 +1235,36 @@ function printq(q::Array{Float64,3}, bxb::Array{Float64,2}, byb::Array{Float64,2
 
     @printf "%s \n" ID
 
+    for i=1:length(q)
+        if abs(q[i]) < 1e-12
+            q[i] = 0
+        end
+    end
+        
+    for i=1:length(bxb)
+        if abs(bxb[i]) < 1e-12
+            bxb[i] = 0
+        end
+        if abs(byb[i]) < 1e-12
+            byb[i] = 0
+        end
+        if abs(fsy[i]) < 1e-12
+            fsy[i] = 0
+        end
+        if abs(gsx[i]) < 1e-12
+            gsx[i] = 0
+        end
+    end
+
     for i=1:length(xidx)
         
         x = Int64(xidx[i])
         y = Int64(yidx[i])
 
         @printf "%3i %3i " x-NBnd y-NBnd 
-        @printf "%9.4g%9.4g%9.4g%9.4g" q[x,y,1] q[x,y,2] q[x,y,3] q[x,y,4] 
-        @printf "%9.4g%9.4g%9.4g%9.4g" q[x,y,5] q[x,y,6] q[x,y,7] q[x,y,8] 
-        @printf "%9.4g%9.4g%9.4g%9.4g\n" bxb[x,y] byb[x,y] fsy[x,y] gsx[x,y]
+        @printf "%8.3f%8.3f%8.3f%8.3f" q[x,y,1] q[x,y,2] q[x,y,3] q[x,y,4] 
+        @printf "%8.3f%8.3f%8.3f%8.3f" q[x,y,5] q[x,y,6] q[x,y,7] q[x,y,8] 
+        @printf "%8.3f%8.3f%8.3f%8.3f\n" bxb[x,y] byb[x,y] fsy[x,y] gsx[x,y]
     end
     
     return
