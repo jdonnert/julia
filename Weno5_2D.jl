@@ -38,7 +38,8 @@ function WENO5_2D()
 
     bxb, byb = interpolateB_center2face(q)
 
-    boundaries!(q)
+    tmp = bxb * 0
+    boundaries!(q, tmp, tmp)
 
     t = 0
     nstep = 0
@@ -60,9 +61,19 @@ function WENO5_2D()
 	return
 
 end # WENO5_2D
+
 """
 This is the classical Runge-Kutta Scheme, fourth order. 
-Don't be scared, it's straight forward e.g. Shu 1988
+Don't be scared, it's straight forward e.g. Shu 1988.
+In RK4, we compute flux differences from the previous state and apply the
+corrected change to the original state. Finally all 4 intermediates states
+are combined to give the full step. 
+Because of the high order time integration, the scheme can be dimensionally 
+unsplit, i.e. we compute flux differences separately for every dimension from
+the same state and apply them together. This means the Roe solver / Weno functions
+are inherently the same for 1D, 2D and 3D. As most of the time is spend here, these
+are our primary optimizations targets. We rotate the state data to loop over y instead
+of x, so we can use the same functions for all directions and vectorize.
 """
 function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2}, 
                             byb0::Array{Float64,2}, dt::Float64)
@@ -73,29 +84,29 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     # step 1
 
     q0_E = copy(q0[:,:,[1,2,3,4,5,6,7,9]])                          # 8th component is E here
-    dFx0_E, fsy_E, tmp = weno5_flux_difference_E(q0_E)
-    q0_E_rot = rotate_state(q0_E, "fwd")                            # x2z, y2x, z2y
-    dFy0_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q0_E_rot)
+    dFx0_E, fsy_E, tmp = weno5_flux_difference_E(q0_E)              # x-direction
+    q0_E_rot = rotate_state(q0_E, "fwd")                            # rotate: x2z, y2x, z2y
+    dFy0_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q0_E_rot)  # y-direction
     dFy0_E = rotate_state(dFy0_E_rot, "bwd")                        # rotate back                  
     gsx_E = transpose(gsx_E_rot)
     
-    q1_E = q0_E - 1/2 * dt/dx * dFx0_E  - 1/2 * dt/dy * dFy0_E
+    q1_E = q0_E - 1/2 * dt/dx * dFx0_E  - 1/2 * dt/dy * dFy0_E      # rk4 step 1 for E state
  
     boundaries!(q1_E, fsy_E, gsx_E)
     Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     # includes shifted fluxes
     bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)                            # rk4 step of face Bfld 
     byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
-    q1_E[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
+    q1_E[:,:,5:6] = interpolateB_face2center(bxb1, byb1)            # update cell centered bfld
     boundaries!(q1_E, fsy_E, gsx_E)                                 # complete E state
 
     q0_S = copy(q0[:,:,[1,2,3,4,5,6,7,8]])                          # 8th component is S here
-    dFx0_S, fsy_S, tmp = weno5_flux_difference_S(q0_S)
+    dFx0_S, fsy_S, tmp = weno5_flux_difference_S(q0_S)              # x-direction
     q0_S_rot = rotate_state(q0_S, "fwd")                            # x -> y
-    dFy0_S_rot, tmp, gsx_S = weno5_flux_difference_S(q0_S_rot)
-    dFy0_S = rotate_state(dFy0_S_rot,"bwd")
+    dFy0_S_rot, tmp, gsx_S = weno5_flux_difference_S(q0_S_rot)      # y-direction
+    dFy0_S = rotate_state(dFy0_S_rot,"bwd")                         # rotate back
     gsx_S = transpose(gsx_S)
 
-    q1_S = q0_S - 1/2 * dt/dx * dFx0_S - 1/2 * dt/dy * dFy0_S 
+    q1_S = q0_S - 1/2 * dt/dx * dFx0_S - 1/2 * dt/dy * dFy0_S       # rk4 step 1 for S state
 
     boundaries!(q1_S, fsy_S, gsx_S)
     Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     # includes shifted fluxes
@@ -104,76 +115,150 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q1_S[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
     boundaries!(q1_S, fsy_S, gsx_S)                                 # complete S state
 
-    q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E, gsx_E) 
+    q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E,  # select E or S state
+                                  gsx_E) 
 
     boundaries!(q1, fsy, gsx)
-    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         # includes shifted fluxes
+    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         # redo fluxct
     bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)
     byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q1[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
     boundaries!(q1, fsy, gsx)                                       # final state - 1st iteration
 
-#printq(q1, bxb1, byb1, fsy,gsx)
+    #printq(q1, bxb1, byb1, fsy,gsx)
 
     # step 2
 
-    q1_E = copy(q1[:,:,[1,2,3,4,5,6,7,9]])                          # 8th component is E here
+    q1_E = copy(q1[:,:,[1,2,3,4,5,6,7,9]])                          
     dFx1_E, fsy_E, tmp = weno5_flux_difference_E(q1_E)
-    
-    q1_E_rot = rotate_state(q1_E, "fwd")                            # rotate so x=z, y=x, z=y
-
+    q1_E_rot = rotate_state(q1_E, "fwd")                            
     dFy1_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q1_E_rot)
-    
-    dFy1_E = rotate_state(dFy1_E_rot, "bwd")                        # rotate back                  
+    dFy1_E = rotate_state(dFy1_E_rot, "bwd")                                          
     gsx_E = transpose(gsx_E_rot)
     
-    q2_E = q1_E - 1/2 * dt/dx * dFx1_E  - 1/2 * dt/dy * dFy1_E
+    q2_E = q0_E - 1/2 * dt/dx * dFx1_E  - 1/2 * dt/dy * dFy1_E
  
     boundaries!(q2_E, fsy_E, gsx_E)
-    Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     # includes shifted fluxes
-    bxb2 = bxb1 - 1/2*dt/dy * (Ox - Oxj)                            # rk4 step of face Bfld 
-    byb2 = byb1 - 1/2*dt/dx * (Oxi - Ox)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     
+    bxb2 = bxb0 - 1/2*dt/dy * (Ox - Oxj)                             
+    byb2 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q2_E[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
-    boundaries!(q2_E, fsy_E, gsx_E)                                 # complete E state
+    boundaries!(q2_E, fsy_E, gsx_E)                                 
 
-printq(q2_E, bxb2, byb2, fsy_E,gsx_E)
-
-    q1_S = copy(q1[:,:,[1,2,3,4,5,6,7,8]])                          # 8th component is S here
+    q1_S = copy(q1[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx1_S, fsy_S, tmp = weno5_flux_difference_S(q1_S)
-    q1_S_rot = rotate_state(q1_S, "fwd")                            # x -> y
+    q1_S_rot = rotate_state(q1_S, "fwd")                            
     dFy1_S_rot, tmp, gsx_S = weno5_flux_difference_S(q1_S_rot)
     dFy1_S = rotate_state(dFy1_S_rot,"bwd")
     gsx_S = transpose(gsx_S)
 
-    q2_S = q1_S - 1/2 * dt/dx * dFx1_S - 1/2 * dt/dy * dFy1_S 
+    q2_S = q0_S - 1/2 * dt/dx * dFx1_S - 1/2 * dt/dy * dFy1_S 
 
     boundaries!(q2_S, fsy_S, gsx_S)
-    Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     # includes shifted fluxes
-    bxb2 = bxb1 - 1/2*dt/dy * (Ox - Oxj)
-    byb2 = byb1 - 1/2*dt/dx * (Oxi - Ox)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     
+    bxb2 = bxb0 - 1/2*dt/dy * (Ox - Oxj)
+    byb2 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q2_S[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
-    boundaries!(q2_S, fsy_S, gsx_S)                                 # complete S state
+    boundaries!(q2_S, fsy_S, gsx_S)                                 
 
-printq(q2_S, bxb2, byb2, fsy_S,gsx_S)
-
-    q2, fsy, gsx, idx = ES_Switch(q2_E, q2_S, fsy_S, gsx_S, fsy_E, gsx_E) 
+    q2, fsy, gsx, idx = ES_Switch(q2_E, q2_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q2, fsy, gsx)
-    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         # includes shifted fluxes
-    bxb2 = bxb1 - 1/2*dt/dy * (Ox - Oxj)
-    byb2 = byb1 - 1/2*dt/dx * (Oxi - Ox)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         
+    bxb2 = bxb0 - 1/2*dt/dy * (Ox - Oxj)
+    byb2 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q2[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
-    boundaries!(q2, fsy, gsx)                                       # final state - 2nd iteration
-
-printq(q2, bxb2, byb2, fsy,gsx)
-
-@assert false
+    boundaries!(q2, fsy, gsx)                                       
 
     # step 3
+
+    q2_E = copy(q2[:,:,[1,2,3,4,5,6,7,9]])                          
+    dFx2_E, fsy_E, tmp = weno5_flux_difference_E(q2_E)
+    q2_E_rot = rotate_state(q2_E, "fwd")                            
+    dFy2_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q2_E_rot)
+    dFy2_E = rotate_state(dFy2_E_rot, "bwd")                                          
+    gsx_E = transpose(gsx_E_rot)
+    
+    q3_E = q0_E - dt/dx * dFx2_E  - dt/dy * dFy2_E
+ 
+    boundaries!(q3_E, fsy_E, gsx_E)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     
+    bxb3 = bxb0 - dt/dy * (Ox - Oxj)                             
+    byb3 = byb0 - dt/dx * (Oxi - Ox)
+    q3_E[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
+    boundaries!(q3_E, fsy_E, gsx_E)                                 
+
+    q2_S = copy(q2[:,:,[1,2,3,4,5,6,7,8]])                          
+    dFx2_S, fsy_S, tmp = weno5_flux_difference_S(q2_S)
+    q2_S_rot = rotate_state(q2_S, "fwd")                            
+    dFy2_S_rot, tmp, gsx_S = weno5_flux_difference_S(q2_S_rot)
+    dFy2_S = rotate_state(dFy2_S_rot,"bwd")
+    gsx_S = transpose(gsx_S)
+
+    q3_S = q0_S - dt/dx * dFx2_S - dt/dy * dFy2_S 
+
+    boundaries!(q3_S, fsy_S, gsx_S)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     
+    bxb3 = bxb0 - dt/dy * (Ox - Oxj)
+    byb3 = byb0 - dt/dx * (Oxi - Ox)
+    q3_S[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
+    boundaries!(q3_S, fsy_S, gsx_S)                                 
+
+    q3, fsy, gsx, idx = ES_Switch(q3_E, q3_S, fsy_S, gsx_S, fsy_E, gsx_E)
+
+    boundaries!(q3, fsy, gsx)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         
+    bxb3 = bxb0 - dt/dy * (Ox - Oxj)
+    byb3 = byb0 - dt/dx * (Oxi - Ox)
+    q3[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
+    boundaries!(q3, fsy, gsx)                                       
+
     # step 4
 
-    #bxb4 = (-bxb0 + bxb1 + 2*bxb2 + bxb3)/3
-    #byb4 = (-byb0 + byb1 + 2*byb2 + byb3)/3
+    q3_E = copy(q3[:,:,[1,2,3,4,5,6,7,9]])                          
+    dFx3_E, fsy_E, tmp = weno5_flux_difference_E(q3_E)
+    q3_E_rot = rotate_state(q3_E, "fwd")                            
+    dFy3_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q3_E_rot)
+    dFy3_E = rotate_state(dFy3_E_rot, "bwd")                                          
+    gsx_E = transpose(gsx_E_rot)
+    
+    q4_E = 1/3 * (-q0_E + q1_E + 2*q2_E + q3_E)
+    q4_E += -1/6 * dt/dx * dFx3_E  - 1/6 * dt/dy * dFy3_E
+
+    boundaries!(q4_E, fsy_E, gsx_E)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     
+    bxb4 = 1/3 * (-bxb0 + bxb1 + 2*bxb2 + bxb3) - 1/6 * dt/dy * (Ox - Oxj)
+    byb4 = 1/3 * (-byb0 + byb1 + 2*byb2 + byb3) - 1/6 * dt/dx * (Oxi - Ox)
+    q4_E[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
+    boundaries!(q4_E, fsy_E, gsx_E)       
+
+    q3_S = copy(q3[:,:,[1,2,3,4,5,6,7,8]])                          
+    dFx3_S, fsy_S, tmp = weno5_flux_difference_S(q3_S)
+    q3_S_rot = rotate_state(q3_S, "fwd")                            
+    dFy3_S_rot, tmp, gsx_S_rot = weno5_flux_difference_S(q3_S_rot)
+    dFy3_S = rotate_state(dFy3_S_rot, "bwd")                                          
+    gsx_S = transpose(gsx_S_rot)
+    
+    q4_S = 1/3 * (-q0_S + q1_S + 2*q2_S + q3_S)
+    q4_S += -1/6 * dt/dx * dFx3_S  - 1/6 * dt/dy * dFy3_S
+
+    boundaries!(q4_S, fsy_S, gsx_S)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy_S, gsx_S)                     
+    bxb4 = 1/3 * (-bxb0 + bxb1 + 2*bxb2 + bxb3) - 1/6 * dt/dy * (Ox - Oxj)
+    byb4 = 1/3 * (-byb0 + byb1 + 2*byb2 + byb3) - 1/6 * dt/dx * (Oxi - Ox)
+    q4_S[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
+    boundaries!(q4_S, fsy_S, gsx_S)  
+
+    q4, fsy, gsx, idx = ES_Switch(q4_E, q4_S, fsy_S, gsx_S, fsy_E, gsx_E)
+
+    boundaries!(q4, fsy, gsx)
+    Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         
+    bxb4 = 1/3 * (-bxb0 + bxb1 + 2*bxb2 + bxb3) - 1/6 * dt/dy * (Ox - Oxj)
+    byb4 = 1/3 * (-byb0 + byb1 + 2*byb2 + byb3) - 1/6 * dt/dx * (Oxi - Ox)
+    q4[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
+    boundaries!(q4, fsy, gsx)                                       
+
+    printq(q4, bxb4, byb4, fsy, gsx)
 
     return q4, bxb4, byb4
 
@@ -238,13 +323,9 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
 
 	    L, R = compute_eigenvectors_S(q,u,F)
 	
-        if (j == 4) 
-            @printf "S : j = %g \n" j
-        end
-
 	    dF = weno5_interpolation(q,a,F,L,R,j)
 
-       for i = NBnd+1:Nqx-NBnd # only data domain
+        @inbounds @simd for i = NBnd+1:Nqx-NBnd # only data domain
     		dq[i,j,1] = dF[i,1] - dF[i-1,1]
     		dq[i,j,2] = dF[i,2] - dF[i-1,2]
     		dq[i,j,3] = dF[i,3] - dF[i-1,3]
@@ -255,7 +336,7 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
 	    	dq[i,j,8] = dF[i,7] - dF[i-1,7]
 	    end
 
-        for i = NBnd:Nqx-NBnd
+        @inbounds @simd for i = NBnd:Nqx-NBnd
             bsy[i,j] = dF[i,5] + 0.5 *(u[i,5]*u[i,3] + u[i+1,5]*u[i+1,3])
             bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
         end
@@ -549,15 +630,11 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
 
 	    F = compute_fluxes_E(q,u)
 
-        if (j == 4) 
-            @printf "E : j = %g \n" j
-        end
-
 	    L, R = compute_eigenvectors_E(q,u,F, j)
 	
 	    dF = weno5_interpolation(q,a,F,L,R,j)
 
-       for i = NBnd+1:Nqx-NBnd
+       @inbounds @simd for i = NBnd+1:Nqx-NBnd
     		dq[i,j,1] = dF[i,1] - dF[i-1,1]
     		dq[i,j,2] = dF[i,2] - dF[i-1,2]
     		dq[i,j,3] = dF[i,3] - dF[i-1,3]
@@ -573,7 +650,6 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
             bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
         end
     end
-    @printf "%g %g  \n" bsy[2,1]  bsy[1,2]
     
     return dq, bsy, bsz
 end
