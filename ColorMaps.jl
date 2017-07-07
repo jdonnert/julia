@@ -87,7 +87,7 @@ color map. The packages Colors and ColorType provide the conversions
 and type definitions.
 	
 	cmap = ColMap(1)
-	img = Arr2Img(arr, cmap; range=[1, 10])
+	img = Arr2Img(arr, cmap; range=[1, 10], log=false, sqrt=false)
 """
 function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 
@@ -95,14 +95,14 @@ function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 	
 	if log == true || sqrt == true
 
-		bad = find(img .< 0)
+		bad = find(arr .< 0)
 		
-		img[bad] = 0
+		arr[bad] = 0
 	end
 
 	if range == [0,0] # auto range
 
-		good = find(isfinite(arr))
+		good = find(isfinite.(arr))
 		
 		range = [ minimum(arr[good]), maximum(arr[good]) ]
 
@@ -111,21 +111,21 @@ function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 
 	if log == true
 		
-		img = log10(img)
+		arr = log10.(arr)
 		
-		range = log10(range)
+		range = log10.(range)
 	end
 
 	if sqrt == true
 		
-		img = sqrt(img)
+		arr = sqrt.(arr)
 		
-		range = sqrt(range)
+		range = sqrt.(range)
 	end
 
 	img = transpose(arr)  # correct alignment
 
-	mask = isnan(img)
+	mask = isnan.(img)
 	img[mask] = range[1]
 
 	ncolours = length(cmap)
