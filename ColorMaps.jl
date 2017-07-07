@@ -129,7 +129,7 @@ function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 	img[mask] = range[1]
 
 	ncolours = length(cmap)
-    rimg = round(Int16, (img-range[1])/(range[2]-range[1]) * (ncolours-1) ) + 1
+    rimg = round.(Int16, (img-range[1])/(range[2]-range[1]) * (ncolours-1) ) + 1
 
 	rimg[rimg .< 1] = 1  				# avoid values < 1 or > 256
     rimg[rimg .> ncolours] = ncolours
