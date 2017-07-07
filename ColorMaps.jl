@@ -136,7 +136,7 @@ function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 
 	(rows,cols) = size(img)
 
-	rgbimg = Array(typeof(cmap[1]), rows,cols)
+    rgbimg = Array{typeof(cmap[1])}(rows,cols)
 
 	for r = 1:rows
 		for c = 1:cols
