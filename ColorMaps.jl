@@ -91,39 +91,39 @@ and type definitions.
 """
 function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
 
-	@assert(ndims(arr) == 2,"Image must be single channel / arr must be 2D")
+	@assert(ndims(arr) == 2, "Input array must be 2D")
 	
-	if log == true || sqrt == true
+	img = transpose(arr)  # correct alignment
 
-		bad = find(arr .< 0)
-		
-		arr[bad] = 0
-	end
+    if log == true
+   		bad = find(img .<= 0)
+   		good = find(img .> 0)
+        img[bad] = minimum(img[good])
+    end
+
+	if sqrt == true
+		bad = find(img .< 0)
+        img[bad] = 0
+    end
 
 	if range == [0,0] # auto range
 
-		good = find(isfinite.(arr))
+		good = find(isfinite.(img))
 		
-		range = [ minimum(arr[good]), maximum(arr[good]) ]
+		range = [ minimum(img[good]), maximum(img[good]) ]
 
 		println("Autorange: $range")
 	end
 
 	if log == true
-		
-		arr = log10.(arr)
-		
+		img = log10.(img)
 		range = log10.(range)
 	end
 
 	if sqrt == true
-		
-		arr = sqrt.(arr)
-		
+		img = sqrt.(img)
 		range = sqrt.(range)
 	end
-
-	img = transpose(arr)  # correct alignment
 
 	mask = isnan.(img)
 	img[mask] = range[1]
