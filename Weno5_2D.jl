@@ -1,6 +1,9 @@
 #module Weno5_2D
 
+using Plots
+using ColorBrewer
 using LaTeXStrings
+using ArrayStatistics
 
 const tmax = 0.1		# end of time integration
 
@@ -42,21 +45,76 @@ function WENO5_2D()
     boundaries!(q, tmp, tmp)
 
     t = 0
-    nstep = 0
+    nstep = 500
 
-    while t < tmax
+    cmap = ColMap(1, debug=true)  # you could choose other maps of course
+
+    #img = Array{typeof(cmap[1])}(Ny,Nx,nstep,9)
+
+    for i = 1:nstep
+    #while t < tmax
 
         dt, vxmax, vymax = timestep(q)
 
-	    @printf "%d : t = %g, dt = %g, vmax = %g, %g \n" nstep t dt vxmax vymax
+	    @printf "\n%d : t = %g, dt = %g, vmax = %g, %g \n" i t dt vxmax vymax
     
+        global istep 
+        istep = i
+
         q, bxb, byb = classical_RK4_step(q, bxb, byb, dt)
         
+        divb = compute_divB(bxb, byb)
+
+        @printf "DivB = %g\n" divb 
+
 		t += dt
 
-		nstep += 1
+       #for i=1:Nx
+       #for j=1:Ny
+       #    @printf "%d %d %e %e %e \n" i j  q[i,j,2] q[i,j,3] q[i,j,4]
+       #end
+       #end
 
-    end # while
+      @printf "%d %e %e \n"  1  amax(q[:,:,1]) amean(q[:,:,1]) 		
+      @printf "%d %e %e \n"  2  amax(q[:,:,2]) amean(q[:,:,2]) 		
+      @printf "%d %e %e \n"  3  amax(q[:,:,3]) amean(q[:,:,3]) 		
+      @printf "%d %e %e \n"  4  amax(q[:,:,4]) amean(q[:,:,4]) 		
+      @printf "%d %e %e \n"  5  amax(q[:,:,5]) amean(q[:,:,5]) 		
+      @printf "%d %e %e \n"  6  amax(q[:,:,6]) amean(q[:,:,6]) 		
+      @printf "%d %e %e \n"  7  amax(q[:,:,7]) amean(q[:,:,7]) 		
+      @printf "%d %e %e \n"  8  amax(q[:,:,8]) amean(q[:,:,8]) 		
+      @printf "%d %e %e \n"  9  amax(q[:,:,9]) amean(q[:,:,9]) 		
+        
+@assert i<20
+        #nstep += 1
+
+       #img[:,:,i,1] = Arr2Img(q[:,:,1], cmap; range=[0.01,19]) # rho
+       #img[:,:,i,2] = Arr2Img(q[:,:,2], cmap; range=[1e-1, 340], log=true) # vx
+       #img[:,:,i,3] = Arr2Img(q[:,:,3], cmap; range=[1e-1, 35], log=true) # 
+       #img[:,:,i,4] = Arr2Img(q[:,:,4], cmap; range=[1e-1, 35], log=true) # 
+       #img[:,:,i,5] = Arr2Img(q[:,:,5], cmap; range=[1,10]) # Bx
+       #img[:,:,i,6] = Arr2Img(q[:,:,6], cmap; range=[5,25]) # 
+       #img[:,:,i,7] = Arr2Img(q[:,:,7], cmap; range=[5,25]) # 
+       #img[:,:,i,8] = Arr2Img(q[:,:,8], cmap; range=[0,70]) # S
+       #img[:,:,i,9] = Arr2Img(q[:,:,9], cmap; range=[10,1e3]) # E
+    
+    end 
+
+    #anim = @animate for i=1:nstep
+
+  ##    plot(img[:,:,i,1], layout=9,ylabel="rho",yticks=nothing, size=(2048,2048*0.3))
+  ##    plot!(img[:,:,i,2], subplot=2, ylabel="vx",yticks=nothing)
+  ##    plot!(img[:,:,i,3], subplot=3, ylabel="vy",yticks=nothing)
+  ##    plot!(img[:,:,i,4], subplot=4, ylabel="vz",yticks=nothing)
+  ##    plot!(img[:,:,i,5], subplot=5, ylabel="Bx",yticks=nothing)
+  ##    plot!(img[:,:,i,6], subplot=6, ylabel="By",yticks=nothing)
+  ##    plot!(img[:,:,i,7], subplot=7, ylabel="BZ",yticks=nothing)
+  ##    plot!(img[:,:,i,8], subplot=8, ylabel="S",yticks=nothing)
+  ##    plot!(img[:,:,i,9], subplot=9, ylabel="E",yticks=nothing, show=true)
+
+  ##end
+
+    #mp4(anim, "/Users/jdonnert/Desktop/blob_fps15.mp4", fps = 15)
 
 	return
 
@@ -64,7 +122,7 @@ end # WENO5_2D
 
 """
 This is the classical Runge-Kutta Scheme, fourth order. 
-Don't be scared, it's straight forward e.g. Shu 1988.
+Don't be scared, it's straight forward e.g. Shu 1988, 99.
 In RK4, we compute flux differences from the previous state and apply the
 corrected change to the original state. Finally all 4 intermediates states
 are combined to give the full step. 
@@ -78,26 +136,30 @@ of x, so we can use the same functions for all directions and vectorize.
 function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2}, 
                             byb0::Array{Float64,2}, dt::Float64)
 
-    fsy = SharedArray{Float64}(Nx, Ny) * 0
-    gsx = SharedArray{Float64}(Nx, Ny) * 0
+    fsy = Array{Float64}(Nx, Ny) * 0
+    gsx = Array{Float64}(Nx, Ny) * 0
 
     # step 1
 
     q0_E = copy(q0[:,:,[1,2,3,4,5,6,7,9]])                          # 8th component is E here
+
     dFx0_E, fsy_E, tmp = weno5_flux_difference_E(q0_E)              # x-direction
+
     q0_E_rot = rotate_state(q0_E, "fwd")                            # rotate: x2z, y2x, z2y
     dFy0_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q0_E_rot)  # y-direction
     dFy0_E = rotate_state(dFy0_E_rot, "bwd")                        # rotate back                  
     gsx_E = transpose(gsx_E_rot)
-    
+
     q1_E = q0_E - 1/2 * dt/dx * dFx0_E  - 1/2 * dt/dy * dFy0_E      # rk4 step 1 for E state
- 
+
     boundaries!(q1_E, fsy_E, gsx_E)
     Ox, Oxi, Oxj =  corner_fluxes(fsy_E, gsx_E)                     # includes shifted fluxes
     bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)                            # rk4 step of face Bfld 
     byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q1_E[:,:,5:6] = interpolateB_face2center(bxb1, byb1)            # update cell centered bfld
     boundaries!(q1_E, fsy_E, gsx_E)                                 # complete E state
+
+#printq(q1_E, bxb1, byb1, fsy_E,gsx_E, "E1:")
 
     q0_S = copy(q0[:,:,[1,2,3,4,5,6,7,8]])                          # 8th component is S here
     dFx0_S, fsy_S, tmp = weno5_flux_difference_S(q0_S)              # x-direction
@@ -115,9 +177,10 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q1_S[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
     boundaries!(q1_S, fsy_S, gsx_S)                                 # complete S state
 
+#printq(q1_S, bxb1, byb1, fsy_S,gsx_S,"S1:")
+
     q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E,  # select E or S state
                                   gsx_E) 
-
     boundaries!(q1, fsy, gsx)
     Ox, Oxi, Oxj =  corner_fluxes(fsy, gsx)                         # redo fluxct
     bxb1 = bxb0 - 1/2*dt/dy * (Ox - Oxj)
@@ -125,7 +188,7 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q1[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
     boundaries!(q1, fsy, gsx)                                       # final state - 1st iteration
 
-    #printq(q1, bxb1, byb1, fsy,gsx)
+#printq(q1, bxb1, byb1, fsy,gsx, "FINAL 1")
 
     # step 2
 
@@ -145,6 +208,8 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q2_E[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
     boundaries!(q2_E, fsy_E, gsx_E)                                 
 
+#printq(q2_E, bxb2, byb2, fsy_E,gsx_E, "E2")
+
     q1_S = copy(q1[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx1_S, fsy_S, tmp = weno5_flux_difference_S(q1_S)
     q1_S_rot = rotate_state(q1_S, "fwd")                            
@@ -161,6 +226,8 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q2_S[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
     boundaries!(q2_S, fsy_S, gsx_S)                                 
 
+#printq(q2_S, bxb2, byb2, fsy_S,gsx_S, "S2")
+
     q2, fsy, gsx, idx = ES_Switch(q2_E, q2_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q2, fsy, gsx)
@@ -169,6 +236,8 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     byb2 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q2[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
     boundaries!(q2, fsy, gsx)                                       
+
+#printq(q2, bxb2, byb2, fsy,gsx, "FINAL 2")
 
     # step 3
 
@@ -188,6 +257,8 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q3_E[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
     boundaries!(q3_E, fsy_E, gsx_E)                                 
 
+#printq(q3_E, bxb3, byb3, fsy_E,gsx_E, "E3")
+
     q2_S = copy(q2[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx2_S, fsy_S, tmp = weno5_flux_difference_S(q2_S)
     q2_S_rot = rotate_state(q2_S, "fwd")                            
@@ -204,6 +275,8 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q3_S[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
     boundaries!(q3_S, fsy_S, gsx_S)                                 
 
+#printq(q3_S, bxb3, byb3, fsy_S,gsx_S, "S3")
+
     q3, fsy, gsx, idx = ES_Switch(q3_E, q3_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q3, fsy, gsx)
@@ -213,6 +286,7 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q3[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
     boundaries!(q3, fsy, gsx)                                       
 
+#printq(q3, bxb3, byb3, fsy,gsx, "FINAL 3")
     # step 4
 
     q3_E = copy(q3[:,:,[1,2,3,4,5,6,7,9]])                          
@@ -232,6 +306,9 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q4_E[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
     boundaries!(q4_E, fsy_E, gsx_E)       
 
+
+#printq(q4_E, bxb4, byb4, fsy_E, gsx_E, "E4")
+
     q3_S = copy(q3[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx3_S, fsy_S, tmp = weno5_flux_difference_S(q3_S)
     q3_S_rot = rotate_state(q3_S, "fwd")                            
@@ -249,6 +326,8 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q4_S[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
     boundaries!(q4_S, fsy_S, gsx_S)  
 
+#printq(q4_S, bxb4, byb4, fsy_S, gsx_S, "S4")
+
     q4, fsy, gsx, idx = ES_Switch(q4_E, q4_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q4, fsy, gsx)
@@ -258,7 +337,7 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q4[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
     boundaries!(q4, fsy, gsx)                                       
 
-    printq(q4, bxb4, byb4, fsy, gsx)
+printq(q4, bxb4, byb4, fsy, gsx, "Final4")
 
     return q4, bxb4, byb4
 
@@ -266,17 +345,17 @@ end # classical_RK4_step
 
 function corner_fluxes(fsy::Array{Float64,2}, gsx::Array{Float64,2})
 
-    Ox  = Array{Float64}(Nx, Ny) .* 0
-    Oxi = Array{Float64}(Nx, Ny) .* 0 # i shifted corner flux Oxi[i,j] = Ox[i-1,j]
-    Oxj = Array{Float64}(Nx, Ny) .* 0 # j shifted corner flux Oxj[i,j] = Ox[i,j-1]
+    Ox  = zeros(Float64,Nx, Ny)
+    Oxi = zeros(Float64,Nx, Ny) # i shifted corner flux 
+    Oxj = zeros(Float64,Nx, Ny) # j shifted corner flux 
 
-    for j = 2:Ny-1
+    @inbounds for j = 2:Ny-1
         @inbounds @simd for i = 2:Nx-1
             Ox[i,j] = 0.5 * (gsx[i,j] + gsx[i+1,j] - fsy[i,j] - fsy[i,j+1])
         end
     end
 
-    for j = 2:Ny-1
+    @inbounds for j = 2:Ny-1
         @inbounds @simd for i = 2:Nx-1
             Oxi[i,j] = Ox[i-1,j]
             Oxj[i,j] = Ox[i,j-1]
@@ -288,17 +367,17 @@ end
 
 function interpolateB_face2center(bxb::Array{Float64,2}, byb::Array{Float64,2})
 
-    Bxy = SharedArray{Float64}(Nx,Ny,2)
+    Bxy = Array{Float64}(Nx,Ny,2)
 
-    for j = NBnd+1:Ny-2
+    @inbounds for j = NBnd+1:Ny-2
         @inbounds @simd for i = NBnd+1:Nx-2 # 4th order
-            Bxy[i,j,1] = (-bxb[i-2,j] + 9*bxb[i-1,j] + 9*bxb[i,j]- bxb[i+1,j])/16
-            Bxy[i,j,2] = (-byb[i,j-2] + 9*byb[i,j-1] + 9*byb[i,j]- byb[i,j+1])/16
+            Bxy[i,j,1] = (-bxb[i-2,j] + 9.0*bxb[i-1,j] + 9.0*bxb[i,j]- bxb[i+1,j])/16.0
+            Bxy[i,j,2] = (-byb[i,j-2] + 9.0*byb[i,j-1] + 9.0*byb[i,j]- byb[i,j+1])/16.0
         end
     end
 
     return Bxy
-end # fluxCT
+end 
 
 # Entropy (S) code
 
@@ -307,13 +386,13 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
     const Nqx = size(q_2D,1) # q might be rotated
     const Nqy = size(q_2D,2)
 
-    dq = SharedArray{Float64}(Nqx, Nqy, 8) * 0
-    bsy = SharedArray{Float64}(Nqx, Nqy) * 0
-    bsz = SharedArray{Float64}(Nqx, Nqy) * 0
+    dq = SharedArray{Float64}(Nqx, Nqy, 8)
+    bsy = SharedArray{Float64}(Nqx, Nqy)
+    bsz = SharedArray{Float64}(Nqx, Nqy)
 
-    for j = 1:Nqy  # 1D along x for fixed y
+    @sync @parallel for j = 1:Nqy  # 1D along x for fixed y
 
-        q = q_2D[:,j,:]
+        q = copy(q_2D[:,j,:])
 
         u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
 
@@ -342,7 +421,7 @@ function weno5_flux_difference_S(q_2D::Array{Float64,3})
         end
     end
 
-    return dq, bsy, bsz
+    return sdata(dq), sdata(bsy), sdata(bsz)
 end
 
 function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2}, 
@@ -352,7 +431,7 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
 	L = zeros(Float64, N,7,7) # left hand eigenvectors
 	R = zeros(Float64, N,7,7) # right hand eigenvectors
 
-	for i=2:N-1
+	@inbounds for i=2:N-1
 		
 		drho = abs(u[i,1] - u[i+1,1]) # to cell boundary
 
@@ -540,10 +619,12 @@ function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,6,7] = cs*as*btz/sqrt_rho
         R[i,7,7] = af*S/rho
 
-		sgnBt = sign(Bz) # enforce continuity
+        # enforce continuity
 
 		if By != 0
-			sgnBt = sign(Bx)
+			sgnBt = sign(By)
+        else
+		    sgnBt = sign(Bz) 
 		end
 
         if sgnBt == 0
@@ -616,25 +697,25 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
     const Nqx = size(q_2D,1) # q might be rotated
     const Nqy = size(q_2D,2)
 
-    dq = SharedArray{Float64}(Nqx, Nqy, 8) * 0
-    bsy = SharedArray{Float64}(Nqx, Nqy) * 0
-    bsz = SharedArray{Float64}(Nqx, Nqy) * 0
+    dq = SharedArray{Float64}(Nqx, Nqy, 8)
+    bsy = SharedArray{Float64}(Nqx, Nqy)
+    bsz = SharedArray{Float64}(Nqx, Nqy)
 
-    for j = 1:Nqy  # 1D along x for fixed y
+    @sync @parallel for j = 1:Nqy  # 1D along x for fixed y
 
-        q = q_2D[:,j,:]
-
+        q = copy(q_2D[:,j,:])
+        
         u = compute_primitive_variables_E(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
-
+        
         a = compute_eigenvalues(u)
 
 	    F = compute_fluxes_E(q,u)
 
-	    L, R = compute_eigenvectors_E(q,u,F, j)
-	
+	    L, R = compute_eigenvectors_E(q,u,F,j)
+
 	    dF = weno5_interpolation(q,a,F,L,R,j)
 
-       @inbounds @simd for i = NBnd+1:Nqx-NBnd
+        @inbounds @simd for i = NBnd+1:Nqx-NBnd
     		dq[i,j,1] = dF[i,1] - dF[i-1,1]
     		dq[i,j,2] = dF[i,2] - dF[i-1,2]
     		dq[i,j,3] = dF[i,3] - dF[i-1,3]
@@ -645,13 +726,14 @@ function weno5_flux_difference_E(q_2D::Array{Float64,3})
 	    	dq[i,j,8] = dF[i,7] - dF[i-1,7]
 	    end
 
-        for i = NBnd:Nqx-NBnd
+        @inbounds @simd for i = NBnd:Nqx-NBnd
             bsy[i,j] = dF[i,5] + 0.5 *(u[i,5]*u[i,3] + u[i+1,5]*u[i+1,3])
             bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
         end
+
     end
     
-    return dq, bsy, bsz
+    return sdata(dq),  sdata(bsy), sdata(bsz)
 end
 
 
@@ -662,7 +744,7 @@ function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2},
 	L = zeros(Float64, N,7,7) # left hand eigenvectors
 	R = zeros(Float64, N,7,7) # right hand eigenvectors
 
-	for i=2:N-1
+	@inbounds for i=2:N-1
 		
 		rho = 0.5 * (u[i,1] + u[i+1,1]) # to cell boundary
 
@@ -702,22 +784,22 @@ function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2},
             sgnBx = 1
         end
 
-		bty = 1/sqrt(2)
-		btz = 1/sqrt(2)
-
 		if Bt2 >= 1e-30
 			bty = By/sqrt(Bt2)
 			btz = Bz/sqrt(Bt2)
+        else
+		    bty = 1/sqrt(2)
+		    btz = 1/sqrt(2)
 		end
-
-		af = 1
-		as = 1
 
 		dl2 = lf^2 - ls^2
 
 		if dl2 >= 1e-30
-			af = sqrt(max(0,cs2 - ls^2))/sqrt(dl2)
-			as = sqrt(max(0,lf^2 - cs2))/sqrt(dl2)
+            af = sqrt(max(0,cs2 - ls^2)/dl2)
+			as = sqrt(max(0,lf^2 - cs2)/dl2)
+        else
+		    af = 1.0
+		    as = 1.0
 		end
 
 		# eigenvectors E version
@@ -790,6 +872,7 @@ function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2},
         	L[i,7,m] *= 0.5/cs2
         end
 
+
 		R[i,1,1] = af
         R[i,2,1] = af*(vx - lf)
         R[i,3,1] = af*vy + as*ls*bty*sgnBx
@@ -846,10 +929,12 @@ function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2},
         R[i,6,7] = cs*as*btz/sqrt_rho
         R[i,7,7] = af*(lf^2 + lf*vx + 0.5*v2 - gam2*cs2) - as*ls*(bty*vy + btz*vz)*sgnBx
 
-		sgnBt = sign(Bz) # enforce continuity
+		 # enforce continuity
 
 		if By != 0
-			sgnBt = sign(Bx)
+			sgnBt = sign(By)
+        else
+            sgnBt = sign(Bz)
 		end
 
         if sgnBt == 0
@@ -883,7 +968,7 @@ function compute_fluxes_E(q::Array{Float64,2}, u::Array{Float64,2})
 	F = zeros(Float64, N, 7)
 
     @inbounds @simd for i = 1:N
-	    pt = u[i,8] + (u[i,5]^2+u[i,6]^2+u[i,7]^2)/2 # total pressure from E
+	    pt = u[i,8] + 0.5*(u[i,5]^2+u[i,6]^2+u[i,7]^2) # total pressure from E
     	vB = u[i,2]*u[i,5] + u[i,3]*u[i,6] + u[i,4]*u[i,7] # v*B
 
         F[i,1] = u[i,1]*u[i,2] 					    # rho * vx
@@ -932,9 +1017,9 @@ function compute_eigenvalues(u::Array{Float64,2})
 
 	root = safe_sqrt((bbn2+cs2).^2 - 4*bnx2.*cs2)
 
-	lf = safe_sqrt((bbn2+cs2+root)/2)
+	lf = safe_sqrt(0.5*(bbn2+cs2+root))
 	la = safe_sqrt(bnx2)
-	ls = safe_sqrt((bbn2+cs2-root)/2)
+	ls = safe_sqrt(0.5*(bbn2+cs2-root))
 
 	a = zeros(Float64, N, 7) # eigenvalues cell center
 
@@ -957,7 +1042,7 @@ function interpolateB_center2face(q::Array{Float64,3})
     bxb = SharedArray{Float64}(Nx, Ny) * 0 # needed on 2:N-2 only
     byb = SharedArray{Float64}(Nx, Ny) * 0
 
-    for j = 2:Ny-2 # fourth order interpolation
+    @inbounds for j = 2:Ny-2 # fourth order interpolation
         @inbounds @simd for i = 2:Nx-2
            bxb[i,j] = (-q[i-1,j,5] + 9*q[i,j,5] + 9*q[i+1,j,5] - q[i+2,j,5])/16
            byb[i,j] = (-q[i,j-1,6] + 9*q[i,j,6] + 9*q[i,j+1,6] - q[i,j+2,6])/16
@@ -969,7 +1054,7 @@ end
 
 function boundaries!(q::Array{Float64,3}, fsy::Array{Float64,2},gsx::Array{Float64,2})
 
-    for j = 1:Ny
+    @inbounds for j = 1:Ny
         q[1,j,:] = q[NBnd+1,j,:]
         q[2,j,:] = q[NBnd+1,j,:]
         q[3,j,:] = q[NBnd+1,j,:]
@@ -997,6 +1082,12 @@ function boundaries!(q::Array{Float64,3}, fsy::Array{Float64,2},gsx::Array{Float
         gsx[i,Ny-NBnd+1] = gsx[i,Ny]
     end
 
+    fsy[1,:] = fsy[:,1] = 0
+    gsx[1,:] = gsx[:,1] = 0
+
+    fsy[Nx,:] = fsy[:,Ny] = 0
+    gsx[Nx,:] = gsx[:,Ny] = 0
+
     return
 end
 
@@ -1016,8 +1107,8 @@ function ES_Switch(q_E::Array{Float64,3}, q_S::Array{Float64,3}, fsy_S::Array{Fl
     fsy = copy(fsy_S)
     gsx = copy(gsx_S)
     
-    for j = 2:Ny
-        for i = 2:Nx
+    @inbounds for j = 2:Ny
+        @inbounds for i = 2:Nx
             if dS[i,j] >= 1e-5
                 q[i,j,1:8] = q_SE[i,j,1:8]
 
@@ -1067,7 +1158,7 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 
 	dF = zeros(Float64, N, 7)
 
-	for i = NBnd:N-NBnd
+	@inbounds for i = NBnd:N-NBnd
 		
     	Fs = zeros(Float64, 7)
 	    Fsk = zeros(Float64, 6)
@@ -1075,9 +1166,9 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 	    dFsk = zeros(Float64, 5)
     	dqsk = zeros(Float64, 5)
 
-		for m=1:7
+		@inbounds for m=1:7
 
-			for ks=1:6 # stencil i-2 -> i+3 : 5th order
+			@inbounds for ks=1:6 # stencil i-2 -> i+3 : 5th order
 
 				Fsk[ks] = L[i,m,1]*F[i-3+ks,1] + L[i,m,2]*F[i-3+ks,2] +
                      	  L[i,m,3]*F[i-3+ks,3] + L[i,m,4]*F[i-3+ks,4] +
@@ -1090,7 +1181,7 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
                      	  L[i,m,7]*q[i-3+ks,8]
 			end # ks
 
-			first = (-Fsk[2]+7*Fsk[3]+7*Fsk[4]-Fsk[5]) / 12 # J&W eq 2.11
+			first = (-Fsk[2]+7.0*Fsk[3]+7.0*Fsk[4]-Fsk[5]) / 12.0 # J&W eq 2.11
 
 			for ks=1:5
 				dFsk[ks] = Fsk[ks+1] - Fsk[ks]
@@ -1099,18 +1190,18 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
 
 			amax = max(abs(a[i,m]),abs(a[i+1,m])) # J&W eq 2.10
 
-			aterm = (dFsk[1] + amax*dqsk[1]) / 2 # Lax-Friedrichs J&W eq. 2.10 & 2.16+
-            bterm = (dFsk[2] + amax*dqsk[2]) / 2
-            cterm = (dFsk[3] + amax*dqsk[3]) / 2
-            dterm = (dFsk[4] + amax*dqsk[4]) / 2
+			aterm = 0.5 * (dFsk[1] + amax*dqsk[1]) # Lax-Friedrichs J&W eq. 2.10 & 2.16+
+            bterm = 0.5 * (dFsk[2] + amax*dqsk[2])
+            cterm = 0.5 * (dFsk[3] + amax*dqsk[3])
+            dterm = 0.5 * (dFsk[4] + amax*dqsk[4])
 
-            IS0 = 13*(aterm-bterm)^2 + 3*(aterm-3*bterm)^2
-            IS1 = 13*(bterm-cterm)^2 + 3*(bterm+cterm)^2
-            IS2 = 13*(cterm-dterm)^2 + 3*(3*cterm-dterm)^2
+            IS0 = 13.0*(aterm-bterm)^2 + 3.0*(aterm-3.0*bterm)^2
+            IS1 = 13.0*(bterm-cterm)^2 + 3.0*(bterm+cterm)^2
+            IS2 = 13.0*(cterm-dterm)^2 + 3.0*(3.0*cterm-dterm)^2
 
-            alpha0 = 1/(eps+IS0)^2
-            alpha1 = 6/(eps+IS1)^2
-            alpha2 = 3/(eps+IS2)^2
+            alpha0 = 1.0/(eps+IS0)^2
+            alpha1 = 6.0/(eps+IS1)^2
+            alpha2 = 3.0/(eps+IS2)^2
 
             omega0 = alpha0/(alpha0+alpha1+alpha2)
             omega2 = alpha2/(alpha0+alpha1+alpha2)
@@ -1118,26 +1209,27 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
             second = omega0*(aterm - 2*bterm + cterm)/3 + # phi_N(f+), J&W eq 2.3 + 1
                   	(omega2-0.5)*(bterm - 2*cterm + dterm)/6
 
-            aterm = (dFsk[5] - amax*dqsk[5]) / 2 # Lax-Friedrichs J&W eq. 2.10 & 2.16+
-            bterm = (dFsk[4] - amax*dqsk[4]) / 2
-            cterm = (dFsk[3] - amax*dqsk[3]) / 2  
-            dterm = (dFsk[2] - amax*dqsk[2]) / 2
+            aterm = 0.5 * (dFsk[5] - amax*dqsk[5]) # Lax-Friedrichs J&W eq. 2.10 & 2.16+
+            bterm = 0.5 * (dFsk[4] - amax*dqsk[4])
+            cterm = 0.5 * (dFsk[3] - amax*dqsk[3])  
+            dterm = 0.5 * (dFsk[2] - amax*dqsk[2])
 
-            IS0 = 13*(aterm-bterm)^2 + 3*(aterm - 3*bterm)^2
-            IS1 = 13*(bterm-cterm)^2 + 3*(bterm + cterm)^2
-            IS2 = 13*(cterm-dterm)^2 + 3*(3*cterm - dterm)^2
+            IS0 = 13.0*(aterm-bterm)^2 + 3.0*(aterm - 3.0*bterm)^2
+            IS1 = 13.0*(bterm-cterm)^2 + 3.0*(bterm + cterm)^2
+            IS2 = 13.0*(cterm-dterm)^2 + 3.0*(3.0*cterm - dterm)^2
 
-            alpha0 = 1/(eps + IS0)^2
-            alpha1 = 6/(eps + IS1)^2
-            alpha2 = 3/(eps + IS2)^2
+            alpha0 = 1.0/(eps + IS0)^2
+            alpha1 = 6.0/(eps + IS1)^2
+            alpha2 = 3.0/(eps + IS2)^2
 
             omega0 = alpha0/(alpha0 + alpha1 + alpha2)
             omega2 = alpha2/(alpha0 + alpha1 + alpha2)
 
-            third  = omega0*(aterm - 2*bterm + cterm) / 3 +	# phi_N(f-)
-                    (omega2 - 0.5)*(bterm - 2*cterm + dterm) / 6
+            third  = omega0*(aterm - 2.0*bterm + cterm) / 3.0 +	# phi_N(f-)
+                    (omega2 - 0.5)*(bterm - 2.0*cterm + dterm) / 6.0
 
             Fs[m] = first - second + third # J&W eq. 2.16 + 1
+
 		end # m
 	
 		for m = 1:7
@@ -1147,6 +1239,7 @@ function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
                       Fs[5]*R[i,m,5] + Fs[6]*R[i,m,6] +
                       Fs[7]*R[i,m,7] 
 		end
+ 
 	end # i
 
 	return dF
@@ -1202,7 +1295,7 @@ function compute_global_vmax(q::Array{Float64,3})
     vxmax = SharedArray{Float64}(Nx, Ny)
     vymax = SharedArray{Float64}(Nx, Ny)
 
-    for j = jMin:jMax # Jiang & Wu after eq 2.24
+    @sync @parallel for j = jMin:jMax # Jiang & Wu after eq 2.24
 		@inbounds @simd for i = iMin:iMax
 			
 			rho = (q[i,j,1] + q[i+1,j,1])/2
@@ -1239,6 +1332,21 @@ function compute_global_vmax(q::Array{Float64,3})
 	end
 
 	return maximum(vxmax), maximum(vymax)
+end
+
+function compute_divB(bxb, byb)
+
+    divB = 0.0
+
+    @inbounds for j=NBnd:Ny-NBnd
+        @inbounds @simd for i=NBnd:Nx-NBnd
+        
+            divB += (bxb[i,j]-bxb[i-1,j])/dx + (byb[i,j]-byb[i,j-1])/dy
+
+        end
+    end
+
+    return divB
 end
 
 function initial_conditions() # Shock Cloud interaction
@@ -1278,7 +1386,7 @@ function initial_conditions() # Shock Cloud interaction
 			q[i,j,:] = state2conserved(s[1],s[2],s[3],s[4],s[5],s[6],s[7],s[8])
 		end
 	end
-
+    
 	return q
 end
 
@@ -1304,7 +1412,7 @@ function safe_sqrt(x::Array{Float64,1})
 end
 
 function printq(q::Array{Float64,3}, bxb::Array{Float64,2}, byb::Array{Float64,2},  
-                fsy::Array{Float64,2}, gsx::Array{Float64,2}; ID="")
+                fsy::Array{Float64,2}, gsx::Array{Float64,2}, ID::String)
 
     xidx = [1,2,3,NBnd+1,78,79,80,Nx/2,Nx-NBnd,Nx/2-1,Nx/2,Nx/2+1,NBnd+1,Nx/2,Nx-NBnd, 10,10,10]
     yidx = [1,2,3,NBnd+1,35,35,35,NBnd+1,NBnd+1,Ny/2,Ny/2,Ny/2,Ny-NBnd,Ny-NBnd,Ny-NBnd, 67,68,69]
