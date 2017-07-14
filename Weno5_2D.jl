@@ -1,7 +1,6 @@
 #module Weno5_2D
 
 using Plots
-using ColorBrewer
 using LaTeXStrings
 using ArrayStatistics
 
@@ -24,10 +23,6 @@ const dx = xsize/(Nx - 2*NBnd)
 const dy = ysize/(Ny - 2*NBnd)
 
 const gam = 5.0/3.0	# adiabatic index & friends
-const gam0 = 1-gam
-const gam1 = (gam-1)/2
-const gam2 = (gam-2)/(gam-1)
-const gamS = (gam-1)/gam
 
 const courFac = 0.8		# Courant Factor
 
@@ -41,80 +36,71 @@ function WENO5_2D()
 
     bxb, byb = interpolateB_center2face(q)
 
-    tmp = bxb * 0
-    boundaries!(q, tmp, tmp)
+    boundaries!(q, bxb, byb)
 
     t = 0
-    nstep = 500
+    nstep = 600
 
-    cmap = ColMap(1, debug=true)  # you could choose other maps of course
+    cmap = ColMap(5)  # you could choose other maps of course
 
-    #img = Array{typeof(cmap[1])}(Ny,Nx,nstep,9)
+    img = Array{typeof(cmap[1])}(Ny,Nx,nstep,9)
 
-    for i = 1:nstep
-    #while t < tmax
+     
+    anim = @animate for i=1:nstep
 
         dt, vxmax, vymax = timestep(q)
 
 	    @printf "\n%d : t = %g, dt = %g, vmax = %g, %g \n" i t dt vxmax vymax
-    
-        global istep 
-        istep = i
 
+        tic()
         q, bxb, byb = classical_RK4_step(q, bxb, byb, dt)
-        
+        toc()
+
         divb = compute_divB(bxb, byb)
 
-        @printf "DivB = %g\n" divb 
+        @printf "Max DivB = %g\n" maximum(abs.(divb))
 
 		t += dt
-
-       #for i=1:Nx
-       #for j=1:Ny
-       #    @printf "%d %d %e %e %e \n" i j  q[i,j,2] q[i,j,3] q[i,j,4]
-       #end
-       #end
-
-      @printf "%d %e %e \n"  1  amax(q[:,:,1]) amean(q[:,:,1]) 		
-      @printf "%d %e %e \n"  2  amax(q[:,:,2]) amean(q[:,:,2]) 		
-      @printf "%d %e %e \n"  3  amax(q[:,:,3]) amean(q[:,:,3]) 		
-      @printf "%d %e %e \n"  4  amax(q[:,:,4]) amean(q[:,:,4]) 		
-      @printf "%d %e %e \n"  5  amax(q[:,:,5]) amean(q[:,:,5]) 		
-      @printf "%d %e %e \n"  6  amax(q[:,:,6]) amean(q[:,:,6]) 		
-      @printf "%d %e %e \n"  7  amax(q[:,:,7]) amean(q[:,:,7]) 		
-      @printf "%d %e %e \n"  8  amax(q[:,:,8]) amean(q[:,:,8]) 		
-      @printf "%d %e %e \n"  9  amax(q[:,:,9]) amean(q[:,:,9]) 		
         
-@assert i<20
+        for i = 1:9
+            @printf "   i = %d Maxq = %e Meanq = %e \n"  i  maximum(q[:,:,i]) mean(q[:,:,i]) 		
+        end     
+
         #nstep += 1
 
-       #img[:,:,i,1] = Arr2Img(q[:,:,1], cmap; range=[0.01,19]) # rho
-       #img[:,:,i,2] = Arr2Img(q[:,:,2], cmap; range=[1e-1, 340], log=true) # vx
-       #img[:,:,i,3] = Arr2Img(q[:,:,3], cmap; range=[1e-1, 35], log=true) # 
-       #img[:,:,i,4] = Arr2Img(q[:,:,4], cmap; range=[1e-1, 35], log=true) # 
-       #img[:,:,i,5] = Arr2Img(q[:,:,5], cmap; range=[1,10]) # Bx
-       #img[:,:,i,6] = Arr2Img(q[:,:,6], cmap; range=[5,25]) # 
-       #img[:,:,i,7] = Arr2Img(q[:,:,7], cmap; range=[5,25]) # 
-       #img[:,:,i,8] = Arr2Img(q[:,:,8], cmap; range=[0,70]) # S
-       #img[:,:,i,9] = Arr2Img(q[:,:,9], cmap; range=[10,1e3]) # E
-    
+        img = Arr2Img(q[:,:,1], cmap; range=[0.01,19]) # rho
+        Plots.plot(img, layout=9,ylabel="rho",yticks=nothing, size=(2048,2048*0.3),colorbar=true)
+
+        img= Arr2Img(q[:,:,2], cmap; range=[0, 340]) # vx
+        Plots.plot!(img, subplot=2, ylabel="vx",yticks=nothing)
+
+        img = Arr2Img(q[:,:,3], cmap; range=[-35, 35])
+        Plots.plot!(img, subplot=3, ylabel="vy",yticks=nothing)
+        
+        img = Arr2Img(q[:,:,4], cmap; range=[-35, 35])
+        Plots.plot!(img, subplot=4, ylabel="vz",yticks=nothing)
+
+        img = Arr2Img(q[:,:,5], cmap; range=[1,10])
+        Plots.plot!(img, subplot=5, ylabel="Bx",yticks=nothing)
+
+        img = Arr2Img(q[:,:,6], cmap; range=[5,25])
+        Plots.plot!(img, subplot=6, ylabel="By",yticks=nothing)
+        
+        img = Arr2Img(q[:,:,7], cmap; range=[5,25])
+        Plots.plot!(img, subplot=7, ylabel="Bz",yticks=nothing)
+
+        img = Arr2Img(q[:,:,8], cmap; range=[0,70])
+        Plots.plot!(img, subplot=8, ylabel="S",yticks=nothing)
+
+        img = Arr2Img(divb, cmap; range=[-1e-11,1e-11])
+        Plots.plot!(img, subplot=9, ylabel="DivB",yticks=nothing)
+
+        #Plots.savefig("/Users/jdonnert/Desktop/frames")
+
     end 
 
-    #anim = @animate for i=1:nstep
-
-  ##    plot(img[:,:,i,1], layout=9,ylabel="rho",yticks=nothing, size=(2048,2048*0.3))
-  ##    plot!(img[:,:,i,2], subplot=2, ylabel="vx",yticks=nothing)
-  ##    plot!(img[:,:,i,3], subplot=3, ylabel="vy",yticks=nothing)
-  ##    plot!(img[:,:,i,4], subplot=4, ylabel="vz",yticks=nothing)
-  ##    plot!(img[:,:,i,5], subplot=5, ylabel="Bx",yticks=nothing)
-  ##    plot!(img[:,:,i,6], subplot=6, ylabel="By",yticks=nothing)
-  ##    plot!(img[:,:,i,7], subplot=7, ylabel="BZ",yticks=nothing)
-  ##    plot!(img[:,:,i,8], subplot=8, ylabel="S",yticks=nothing)
-  ##    plot!(img[:,:,i,9], subplot=9, ylabel="E",yticks=nothing, show=true)
-
-  ##end
-
-    #mp4(anim, "/Users/jdonnert/Desktop/blob_fps15.mp4", fps = 15)
+    mp4(anim, "/Users/jdonnert/Desktop/blob.mp4")
+    gif(anim, "/Users/jdonnert/Desktop/blob.gif")
 
 	return
 
@@ -140,16 +126,13 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     gsx = Array{Float64}(Nx, Ny) * 0
 
     # step 1
-
     q0_E = copy(q0[:,:,[1,2,3,4,5,6,7,9]])                          # 8th component is E here
 
     dFx0_E, fsy_E, tmp = weno5_flux_difference_E(q0_E)              # x-direction
-
     q0_E_rot = rotate_state(q0_E, "fwd")                            # rotate: x2z, y2x, z2y
     dFy0_E_rot, tmp, gsx_E_rot = weno5_flux_difference_E(q0_E_rot)  # y-direction
     dFy0_E = rotate_state(dFy0_E_rot, "bwd")                        # rotate back                  
     gsx_E = transpose(gsx_E_rot)
-
     q1_E = q0_E - 1/2 * dt/dx * dFx0_E  - 1/2 * dt/dy * dFy0_E      # rk4 step 1 for E state
 
     boundaries!(q1_E, fsy_E, gsx_E)
@@ -158,8 +141,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     byb1 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q1_E[:,:,5:6] = interpolateB_face2center(bxb1, byb1)            # update cell centered bfld
     boundaries!(q1_E, fsy_E, gsx_E)                                 # complete E state
-
-#printq(q1_E, bxb1, byb1, fsy_E,gsx_E, "E1:")
 
     q0_S = copy(q0[:,:,[1,2,3,4,5,6,7,8]])                          # 8th component is S here
     dFx0_S, fsy_S, tmp = weno5_flux_difference_S(q0_S)              # x-direction
@@ -177,8 +158,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q1_S[:,:,5:6] = interpolateB_face2center(bxb1, byb1)
     boundaries!(q1_S, fsy_S, gsx_S)                                 # complete S state
 
-#printq(q1_S, bxb1, byb1, fsy_S,gsx_S,"S1:")
-
     q1, fsy, gsx, idx = ES_Switch(q1_E, q1_S, fsy_S, gsx_S, fsy_E,  # select E or S state
                                   gsx_E) 
     boundaries!(q1, fsy, gsx)
@@ -189,7 +168,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     boundaries!(q1, fsy, gsx)                                       # final state - 1st iteration
 
 #printq(q1, bxb1, byb1, fsy,gsx, "FINAL 1")
-
     # step 2
 
     q1_E = copy(q1[:,:,[1,2,3,4,5,6,7,9]])                          
@@ -208,8 +186,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q2_E[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
     boundaries!(q2_E, fsy_E, gsx_E)                                 
 
-#printq(q2_E, bxb2, byb2, fsy_E,gsx_E, "E2")
-
     q1_S = copy(q1[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx1_S, fsy_S, tmp = weno5_flux_difference_S(q1_S)
     q1_S_rot = rotate_state(q1_S, "fwd")                            
@@ -226,8 +202,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q2_S[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
     boundaries!(q2_S, fsy_S, gsx_S)                                 
 
-#printq(q2_S, bxb2, byb2, fsy_S,gsx_S, "S2")
-
     q2, fsy, gsx, idx = ES_Switch(q2_E, q2_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q2, fsy, gsx)
@@ -236,8 +210,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     byb2 = byb0 - 1/2*dt/dx * (Oxi - Ox)
     q2[:,:,5:6] = interpolateB_face2center(bxb2, byb2)
     boundaries!(q2, fsy, gsx)                                       
-
-#printq(q2, bxb2, byb2, fsy,gsx, "FINAL 2")
 
     # step 3
 
@@ -257,8 +229,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q3_E[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
     boundaries!(q3_E, fsy_E, gsx_E)                                 
 
-#printq(q3_E, bxb3, byb3, fsy_E,gsx_E, "E3")
-
     q2_S = copy(q2[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx2_S, fsy_S, tmp = weno5_flux_difference_S(q2_S)
     q2_S_rot = rotate_state(q2_S, "fwd")                            
@@ -275,8 +245,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q3_S[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
     boundaries!(q3_S, fsy_S, gsx_S)                                 
 
-#printq(q3_S, bxb3, byb3, fsy_S,gsx_S, "S3")
-
     q3, fsy, gsx, idx = ES_Switch(q3_E, q3_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q3, fsy, gsx)
@@ -286,7 +254,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q3[:,:,5:6] = interpolateB_face2center(bxb3, byb3)
     boundaries!(q3, fsy, gsx)                                       
 
-#printq(q3, bxb3, byb3, fsy,gsx, "FINAL 3")
     # step 4
 
     q3_E = copy(q3[:,:,[1,2,3,4,5,6,7,9]])                          
@@ -306,9 +273,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q4_E[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
     boundaries!(q4_E, fsy_E, gsx_E)       
 
-
-#printq(q4_E, bxb4, byb4, fsy_E, gsx_E, "E4")
-
     q3_S = copy(q3[:,:,[1,2,3,4,5,6,7,8]])                          
     dFx3_S, fsy_S, tmp = weno5_flux_difference_S(q3_S)
     q3_S_rot = rotate_state(q3_S, "fwd")                            
@@ -326,8 +290,6 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     q4_S[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
     boundaries!(q4_S, fsy_S, gsx_S)  
 
-#printq(q4_S, bxb4, byb4, fsy_S, gsx_S, "S4")
-
     q4, fsy, gsx, idx = ES_Switch(q4_E, q4_S, fsy_S, gsx_S, fsy_E, gsx_E)
 
     boundaries!(q4, fsy, gsx)
@@ -335,28 +297,31 @@ function classical_RK4_step(q0::Array{Float64,3}, bxb0::Array{Float64,2},
     bxb4 = 1/3 * (-bxb0 + bxb1 + 2*bxb2 + bxb3) - 1/6 * dt/dy * (Ox - Oxj)
     byb4 = 1/3 * (-byb0 + byb1 + 2*byb2 + byb3) - 1/6 * dt/dx * (Oxi - Ox)
     q4[:,:,5:6] = interpolateB_face2center(bxb4, byb4)
-    boundaries!(q4, fsy, gsx)                                       
+    boundaries!(q4, bxb4, byb4)                                       
 
-printq(q4, bxb4, byb4, fsy, gsx, "Final4")
-
+    printq(q4, bxb4, byb4, fsy, gsx, "Final4")
+   
     return q4, bxb4, byb4
 
 end # classical_RK4_step
 
 function corner_fluxes(fsy::Array{Float64,2}, gsx::Array{Float64,2})
 
-    Ox  = zeros(Float64,Nx, Ny)
-    Oxi = zeros(Float64,Nx, Ny) # i shifted corner flux 
-    Oxj = zeros(Float64,Nx, Ny) # j shifted corner flux 
+    const Nfx = size(fsy,1)
+    const Nfy = size(fsy,2)
 
-    @inbounds for j = 2:Ny-1
-        @inbounds @simd for i = 2:Nx-1
+    Ox  = zeros(Float64, Nx, Ny)
+    Oxi = zeros(Float64, Nx, Ny) # i shifted corner flux 
+    Oxj = zeros(Float64, Nx, Ny) # j shifted corner flux 
+
+    @inbounds for j = 2:Nfy-1
+        @inbounds @simd for i = 2:Nfx-1
             Ox[i,j] = 0.5 * (gsx[i,j] + gsx[i+1,j] - fsy[i,j] - fsy[i,j+1])
         end
     end
 
-    @inbounds for j = 2:Ny-1
-        @inbounds @simd for i = 2:Nx-1
+    @inbounds for j = 2:Nfy-1
+        @inbounds @simd for i = 2:Nfx-1
             Oxi[i,j] = Ox[i-1,j]
             Oxj[i,j] = Ox[i,j-1]
         end
@@ -381,310 +346,612 @@ end
 
 # Entropy (S) code
 
-function weno5_flux_difference_S(q_2D::Array{Float64,3})
 
-    const Nqx = size(q_2D,1) # q might be rotated
-    const Nqy = size(q_2D,2)
+function weno5_flux_difference_S(q::Array{Float64,3})
 
-    dq = SharedArray{Float64}(Nqx, Nqy, 8)
-    bsy = SharedArray{Float64}(Nqx, Nqy)
-    bsz = SharedArray{Float64}(Nqx, Nqy)
+    const Nqx = size(q,1)                       # q might be rotated
+    const Nqy = size(q,2)
+    
+    u = compute_primitive_variables_S(q)        # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
+    
+    a = compute_eigenvalues(u)
 
-    @sync @parallel for j = 1:Nqy  # 1D along x for fixed y
+    F = compute_fluxes_S(q,u)
+    
+    #L, R = compute_eigenvectors_S(q,u,F)
+    L, R = compute_eigenvectors_S_vec(q,u,F,gam)
 
-        q = copy(q_2D[:,j,:])
+    dF = weno5_interpolation(q,a,F,L,R)
 
-        u = compute_primitive_variables_S(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
+    dq = Array{Float64}(Nqx, Nqy, 8)
+    bsy = Array{Float64}(Nqx, Nqy)
+    bsz = Array{Float64}(Nqx, Nqy)
 
-        a = compute_eigenvalues(u)
+    @inbounds for j = NBnd:Nqy-NBnd+1           # 1D along x for fixed y
+        @inbounds @simd for i = NBnd:Nqx-NBnd+1 # only data domain
 
-	    F = compute_fluxes_S(q,u)
-
-	    L, R = compute_eigenvectors_S(q,u,F)
-	
-	    dF = weno5_interpolation(q,a,F,L,R,j)
-
-        @inbounds @simd for i = NBnd+1:Nqx-NBnd # only data domain
-    		dq[i,j,1] = dF[i,1] - dF[i-1,1]
-    		dq[i,j,2] = dF[i,2] - dF[i-1,2]
-    		dq[i,j,3] = dF[i,3] - dF[i-1,3]
-    		dq[i,j,4] = dF[i,4] - dF[i-1,4]
-    		dq[i,j,5] = 0                   # fluxct scheme later
-    		dq[i,j,6] = dF[i,5] - dF[i-1,5]
-    		dq[i,j,7] = dF[i,6] - dF[i-1,6]
-	    	dq[i,j,8] = dF[i,7] - dF[i-1,7]
+    		dq[i,j,1] = dF[i,j,1] - dF[i-1,j,1]
+    		dq[i,j,2] = dF[i,j,2] - dF[i-1,j,2]
+    		dq[i,j,3] = dF[i,j,3] - dF[i-1,j,3]
+    		dq[i,j,4] = dF[i,j,4] - dF[i-1,j,4]
+    		dq[i,j,5] = 0
+    		dq[i,j,6] = dF[i,j,5] - dF[i-1,j,5]
+    		dq[i,j,7] = dF[i,j,6] - dF[i-1,j,6]
+	    	dq[i,j,8] = dF[i,j,7] - dF[i-1,j,7]
 	    end
 
-        @inbounds @simd for i = NBnd:Nqx-NBnd
-            bsy[i,j] = dF[i,5] + 0.5 *(u[i,5]*u[i,3] + u[i+1,5]*u[i+1,3])
-            bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
+        @inbounds @simd for i = NBnd:Nqx-NBnd+1
+            bsy[i,j] = dF[i,j,5] + 0.5 *(u[i,j,5]*u[i,j,3] + u[i+1,j,5]*u[i+1,j,3])
+            bsz[i,j] = dF[i,j,6] + 0.5 *(u[i,j,5]*u[i,j,4] + u[i+1,j,5]*u[i+1,j,4])
         end
     end
 
-    return sdata(dq), sdata(bsy), sdata(bsz)
+    return dq, bsy, bsz
 end
 
-function compute_eigenvectors_S(q::Array{Float64,2}, u::Array{Float64,2}, 
-								F::Array{Float64,2}) # Roe solver
-    N = size(q, 1)
+function compute_eigenvectors_S(q::Array{Float64,3}, u::Array{Float64,3}, 
+								F::Array{Float64,3}) # Roe solver
+    const gam0 = 1-gam
+    const gam1 = (gam-1)/2
+    const gam2 = (gam-2)/(gam-1)
+    const gamS = (gam-1)/gam
 
-	L = zeros(Float64, N,7,7) # left hand eigenvectors
-	R = zeros(Float64, N,7,7) # right hand eigenvectors
+    Nux = size(u, 1)
+    Nuy = size(u, 2)
 
-	@inbounds for i=2:N-1
+	L = zeros(Float64, Nux, Nuy, 7,7) # left hand eigenvectors
+    R = zeros(Float64, Nux, Nuy, 7,7) # right hand eigenvectors
+
+	@inbounds for j = 1:Nuy-1
+	    @inbounds for i = 1:Nux-1
 		
-		drho = abs(u[i,1] - u[i+1,1]) # to cell boundary
+		    drho = abs(u[i,j,1] - u[i+1,j,1]) # to cell boundary
+    
+    		if drho <= 1e-12
+    			rho = 0.5 * (u[i,j,1] + u[i+1,j,1])
+    		else 
+    			rho = abs(gam0*drho/(u[i+1,j,1]^gam0 - u[i,j,1]^gam0))^(1/gam)
+    		end
 
-		if drho <= 1e-12
-			rho = 0.5 * (u[i,1] + u[i+1,1])
-		else 
-			rho = abs(gam0*drho/(u[i+1,1]^gam0 - u[i,1]^gam0))^(1/gam)
-		end
+    		vx = 0.5 * (u[i,j,2] + u[i+1,j,2])
+		    vy = 0.5 * (u[i,j,3] + u[i+1,j,3])
+    		vz = 0.5 * (u[i,j,4] + u[i+1,j,4])
 
-		vx = 0.5 * (u[i,2] + u[i+1,2])
-		vy = 0.5 * (u[i,3] + u[i+1,3])
-		vz = 0.5 * (u[i,4] + u[i+1,4])
+    		Bx = 0.5 * (u[i,j,5] + u[i+1,j,5])
+    		By = 0.5 * (u[i,j,6] + u[i+1,j,6])
+    		Bz = 0.5 * (u[i,j,7] + u[i+1,j,7])
 
-		Bx = 0.5 * (u[i,5] + u[i+1,5])
-		By = 0.5 * (u[i,6] + u[i+1,6])
-		Bz = 0.5 * (u[i,7] + u[i+1,7])
+    		pg = 0.5 * (u[i,j,8] + u[i+1,j,8])
 
-		pg = 0.5 * (u[i,8] + u[i+1,8])
-		S = pg/rho^(gam-1) 
+    		S = pg/rho^(gam-1) 
 
-		v2 = vx^2 + vy^2 + vz^2
-		B2 = Bx^2 + By^2 + Bz^2
+    		v2 = vx^2 + vy^2 + vz^2
+    		B2 = Bx^2 + By^2 + Bz^2
 
-		cs2 = max(0, gam*abs(pg/rho))
-		cs = sqrt(cs2)
-		bbn2 = B2/rho
-		bnx2 = Bx^2/rho
+    		cs2 = max(0, gam*abs(pg/rho))
+    		cs = sqrt(cs2)
+    		bbn2 = B2/rho
+    		bnx2 = Bx^2/rho
 
-		root = max(0, (bbn2+cs2)^2 - 4*bnx2*cs2)
-		root = sqrt(root)
+	    	root = max(0, (bbn2+cs2)^2 - 4*bnx2*cs2)
+		    root = sqrt(root)
 
-		lf = sqrt(max(0, (bbn2+cs2+root)/2)) 	# fast mode
-		la = sqrt(max(0, bnx2))					# alven mode
-		ls = sqrt(max(0, (bbn2+cs2-root)/2))	# slow mode
+    		lf = sqrt(max(0, (bbn2+cs2+root)/2)) 	# fast mode
+    		la = sqrt(max(0, bnx2))					# alven mode
+    		ls = sqrt(max(0, (bbn2+cs2-root)/2))	# slow mode
 
-		# resolve degeneracies
+    		# resolve degeneracies
 
-		Bt2 = By^2 + Bz^2
-		sgnBx = sign(Bx) # -1, 0, 1
+	    	Bt2 = By^2 + Bz^2
+		    sgnBx = sign(Bx) # -1, 0, 1
 
-        if sgnBx == 0
-            sgnBx = 1
-        end
+            if sgnBx == 0
+                sgnBx = 1
+            end
 
-		bty = 1/sqrt(2)
-		btz = 1/sqrt(2)
+    		bty = 1/sqrt(2)
+	    	btz = 1/sqrt(2)
 
-		if Bt2 > 1e-30
-			bty = By/sqrt(Bt2)
-			btz = Bz/sqrt(Bt2)
-		end
+    		if Bt2 > 1e-30
+	    		bty = By/sqrt(Bt2)
+			    btz = Bz/sqrt(Bt2)
+		    end
 
-		af = 1
-		as = 1
+    		af = 1
+    		as = 1
 
-		dl2 = lf^2 - ls^2
+    		dl2 = lf^2 - ls^2
 
-		if dl2 >= 1e-30
-			af = sqrt(max(0,cs2 - ls^2))/sqrt(dl2)
-			as = sqrt(max(0,lf^2 - cs2))/sqrt(dl2)
-		end
+    		if dl2 >= 1e-30
+    			af = sqrt(max(0,cs2 - ls^2))/sqrt(dl2)
+    			as = sqrt(max(0,lf^2 - cs2))/sqrt(dl2)
+    		end
 
-		# eigenvectors
+    		# eigenvectors
 
-		sqrt_rho = sqrt(rho)
+    		sqrt_rho = sqrt(rho)
+    
+    		L[i,j,1,1] =  af*(gamS*cs2+lf*vx) - as*ls*(bty*vy+btz*vz)*sgnBx
+            L[i,j,1,2] = -af*lf
+            L[i,j,1,3] =  as*ls*bty*sgnBx
+            L[i,j,1,4] =  as*ls*btz*sgnBx
+            L[i,j,1,5] =  cs*as*bty*sqrt_rho
+            L[i,j,1,6] =  cs*as*btz*sqrt_rho
+            L[i,j,1,7] =  af*cs2*rho/(gam*S)
 
-		L[i,1,1] =  af*(gamS*cs2+lf*vx) - as*ls*(bty*vy+btz*vz)*sgnBx
-        L[i,1,2] = -af*lf
-        L[i,1,3] =  as*ls*bty*sgnBx
-        L[i,1,4] =  as*ls*btz*sgnBx
-        L[i,1,5] =  cs*as*bty*sqrt_rho
-        L[i,1,6] =  cs*as*btz*sqrt_rho
-        L[i,1,7] =  af*cs2*rho/(gam*S)
+            L[i,j,2,1] =  btz*vy-bty*vz
+            L[i,j,2,2] =  0
+            L[i,j,2,3] = -btz
+            L[i,j,2,4] =  bty
+            L[i,j,2,5] = -btz*sgnBx*sqrt_rho
+            L[i,j,2,6] =  bty*sgnBx*sqrt_rho
+            L[i,j,2,7] =  0
             
-        L[i,2,1] =  btz*vy-bty*vz
-        L[i,2,2] =  0
-        L[i,2,3] = -btz
-        L[i,2,4] =  bty
-        L[i,2,5] = -btz*sgnBx*sqrt_rho
-        L[i,2,6] =  bty*sgnBx*sqrt_rho
-        L[i,2,7] =  0
+            L[i,j,3,1] =  as*(gamS*cs2+ls*vx) + af*lf*(bty*vy+btz*vz)*sgnBx
+            L[i,j,3,2] = -as*ls
+            L[i,j,3,3] = -af*lf*bty*sgnBx
+            L[i,j,3,4] = -af*lf*btz*sgnBx
+            L[i,j,3,5] = -cs*af*bty*sqrt_rho
+            L[i,j,3,6] = -cs*af*btz*sqrt_rho
+            L[i,j,3,7] =  as*cs2*rho/(gam*S)
             
-        L[i,3,1] =  as*(gamS*cs2+ls*vx) + af*lf*(bty*vy+btz*vz)*sgnBx
-        L[i,3,2] = -as*ls
-        L[i,3,3] = -af*lf*bty*sgnBx
-        L[i,3,4] = -af*lf*btz*sgnBx
-        L[i,3,5] = -cs*af*bty*sqrt_rho
-        L[i,3,6] = -cs*af*btz*sqrt_rho
-        L[i,3,7] =  as*cs2*rho/(gam*S)
+            L[i,j,4,1] =  1/gam
+            L[i,j,4,2] =  0
+            L[i,j,4,3] =  0
+            L[i,j,4,4] =  0
+            L[i,j,4,5] =  0
+            L[i,j,4,6] =  0
+            L[i,j,4,7] = -rho/(gam*S)
             
-        L[i,4,1] =  1/gam
-        L[i,4,2] =  0
-        L[i,4,3] =  0
-        L[i,4,4] =  0
-        L[i,4,5] =  0
-        L[i,4,6] =  0
-        L[i,4,7] = -rho/(gam*S)
+            L[i,j,5,1] =  as*(gamS*cs2-ls*vx) - af*lf*(bty*vy+btz*vz)*sgnBx
+            L[i,j,5,2] =  as*ls
+            L[i,j,5,3] =  af*lf*bty*sgnBx
+            L[i,j,5,4] =  af*lf*btz*sgnBx
+            L[i,j,5,5] = -cs*af*bty*sqrt_rho
+            L[i,j,5,6] = -cs*af*btz*sqrt_rho
+            L[i,j,5,7] =  as*cs2*rho/(gam*S)
             
-        L[i,5,1] =  as*(gamS*cs2-ls*vx) - af*lf*(bty*vy+btz*vz)*sgnBx
-        L[i,5,2] =  as*ls
-        L[i,5,3] =  af*lf*bty*sgnBx
-        L[i,5,4] =  af*lf*btz*sgnBx
-        L[i,5,5] = -cs*af*bty*sqrt_rho
-        L[i,5,6] = -cs*af*btz*sqrt_rho
-        L[i,5,7] =  as*cs2*rho/(gam*S)
+            L[i,j,6,1] =  btz*vy-bty*vz
+            L[i,j,6,2] =  0
+            L[i,j,6,3] = -btz
+            L[i,j,6,4] =  bty
+            L[i,j,6,5] =  btz*sgnBx*sqrt_rho
+            L[i,j,6,6] = -bty*sgnBx*sqrt_rho
+            L[i,j,6,7] =  0
             
-        L[i,6,1] =  btz*vy-bty*vz
-        L[i,6,2] =  0
-        L[i,6,3] = -btz
-        L[i,6,4] =  bty
-        L[i,6,5] =  btz*sgnBx*sqrt_rho
-        L[i,6,6] = -bty*sgnBx*sqrt_rho
-        L[i,6,7] =  0
-            
-        L[i,7,1] =  af*(gamS*cs2-lf*vx) + as*ls*(bty*vy+btz*vz)*sgnBx
-        L[i,7,2] =  af*lf
-        L[i,7,3] = -as*ls*bty*sgnBx
-        L[i,7,4] = -as*ls*btz*sgnBx
-        L[i,7,5] =  cs*as*bty*sqrt_rho
-        L[i,7,6] =  cs*as*btz*sqrt_rho
-        L[i,7,7] =  af*cs2*rho/(gam*S)
+            L[i,j,7,1] =  af*(gamS*cs2-lf*vx) + as*ls*(bty*vy+btz*vz)*sgnBx
+            L[i,j,7,2] =  af*lf
+            L[i,j,7,3] = -as*ls*bty*sgnBx
+            L[i,j,7,4] = -as*ls*btz*sgnBx
+            L[i,j,7,5] =  cs*as*bty*sqrt_rho
+            L[i,j,7,6] =  cs*as*btz*sqrt_rho
+            L[i,j,7,7] =  af*cs2*rho/(gam*S)
 
-        for m=1:7
-            L[i,1,m] *= 0.5/cs2
-            L[i,2,m] *= 0.5
-            L[i,3,m] *= 0.5/cs2 # 4 missing ?
-            L[i,5,m] *= 0.5/cs2
-            L[i,6,m] *= 0.5
-        	L[i,7,m] *= 0.5/cs2
-        end
+            for m=1:7
+                L[i,j,1,m] *= 0.5/cs2
+                L[i,j,2,m] *= 0.5
+                L[i,j,3,m] *= 0.5/cs2 # 4 missing ?
+                L[i,j,5,m] *= 0.5/cs2
+                L[i,j,6,m] *= 0.5
+            	L[i,j,7,m] *= 0.5/cs2
+            end
 
-		R[i,1,1] = af
-        R[i,2,1] = af*(vx-lf)
-        R[i,3,1] = af*vy + as*ls*bty*sgnBx
-        R[i,4,1] = af*vz + as*ls*btz*sgnBx
-        R[i,5,1] = cs*as*bty/sqrt_rho
-        R[i,6,1] = cs*as*btz/sqrt_rho
-        R[i,7,1] = af*S/rho
+	    	R[i,j,1,1] = af
+            R[i,j,2,1] = af*(vx-lf)
+            R[i,j,3,1] = af*vy + as*ls*bty*sgnBx
+            R[i,j,4,1] = af*vz + as*ls*btz*sgnBx
+            R[i,j,5,1] = cs*as*bty/sqrt_rho
+            R[i,j,6,1] = cs*as*btz/sqrt_rho
+            R[i,j,7,1] = af*S/rho
             
-        R[i,1,2] =  0
-        R[i,2,2] =  0
-        R[i,3,2] = -btz
-        R[i,4,2] =  bty
-        R[i,5,2] = -btz*sgnBx/sqrt_rho
-        R[i,6,2] =  bty*sgnBx/sqrt_rho
-        R[i,7,2] =  0
+            R[i,j,1,2] =  0
+            R[i,j,2,2] =  0
+            R[i,j,3,2] = -btz
+            R[i,j,4,2] =  bty
+            R[i,j,5,2] = -btz*sgnBx/sqrt_rho
+            R[i,j,6,2] =  bty*sgnBx/sqrt_rho
+            R[i,j,7,2] =  0
             
-        R[i,1,3] =  as
-        R[i,2,3] =  as*(vx-ls)
-        R[i,3,3] =  as*vy - af*lf*bty*sgnBx
-        R[i,4,3] =  as*vz - af*lf*btz*sgnBx
-        R[i,5,3] = -cs*af*bty/sqrt_rho
-        R[i,6,3] = -cs*af*btz/sqrt_rho
-        R[i,7,3] =  as*S/rho
+            R[i,j,1,3] =  as
+            R[i,j,2,3] =  as*(vx-ls)
+            R[i,j,3,3] =  as*vy - af*lf*bty*sgnBx
+            R[i,j,4,3] =  as*vz - af*lf*btz*sgnBx
+            R[i,j,5,3] = -cs*af*bty/sqrt_rho
+            R[i,j,6,3] = -cs*af*btz/sqrt_rho
+            R[i,j,7,3] =  as*S/rho
             
-        R[i,1,4] =  1
-        R[i,2,4] =  vx
-        R[i,3,4] =  vy
-        R[i,4,4] =  vz
-        R[i,5,4] =  0
-        R[i,6,4] =  0
-        R[i,7,4] =  gam0*S/rho
+            R[i,j,1,4] =  1
+            R[i,j,2,4] =  vx
+            R[i,j,3,4] =  vy
+            R[i,j,4,4] =  vz
+            R[i,j,5,4] =  0
+            R[i,j,6,4] =  0
+            R[i,j,7,4] =  gam0*S/rho
             
-        R[i,1,5] =  as
-        R[i,2,5] =  as*(vx+ls)
-        R[i,3,5] =  as*vy + af*lf*bty*sgnBx
-        R[i,4,5] =  as*vz + af*lf*btz*sgnBx
-        R[i,5,5] = -cs*af*bty/sqrt_rho
-        R[i,6,5] = -cs*af*btz/sqrt_rho
-        R[i,7,5] =  as*S/rho
+            R[i,j,1,5] =  as
+            R[i,j,2,5] =  as*(vx+ls)
+            R[i,j,3,5] =  as*vy + af*lf*bty*sgnBx
+            R[i,j,4,5] =  as*vz + af*lf*btz*sgnBx
+            R[i,j,5,5] = -cs*af*bty/sqrt_rho
+            R[i,j,6,5] = -cs*af*btz/sqrt_rho
+            R[i,j,7,5] =  as*S/rho
             
-        R[i,1,6] =  0
-        R[i,2,6] =  0
-        R[i,3,6] = -btz
-        R[i,4,6] =  bty
-        R[i,5,6] =  btz*sgnBx/sqrt_rho
-        R[i,6,6] = -bty*sgnBx/sqrt_rho
-        R[i,7,6] =  0
+            R[i,j,1,6] =  0
+            R[i,j,2,6] =  0
+            R[i,j,3,6] = -btz
+            R[i,j,4,6] =  bty
+            R[i,j,5,6] =  btz*sgnBx/sqrt_rho
+            R[i,j,6,6] = -bty*sgnBx/sqrt_rho
+            R[i,j,7,6] =  0
             
-        R[i,1,7] = af
-        R[i,2,7] = af*(vx+lf)
-        R[i,3,7] = af*vy - as*ls*bty*sgnBx
-        R[i,4,7] = af*vz - as*ls*btz*sgnBx
-        R[i,5,7] = cs*as*bty/sqrt_rho
-        R[i,6,7] = cs*as*btz/sqrt_rho
-        R[i,7,7] = af*S/rho
+            R[i,j,1,7] = af
+            R[i,j,2,7] = af*(vx+lf)
+            R[i,j,3,7] = af*vy - as*ls*bty*sgnBx
+            R[i,j,4,7] = af*vz - as*ls*btz*sgnBx
+            R[i,j,5,7] = cs*as*bty/sqrt_rho
+            R[i,j,6,7] = cs*as*btz/sqrt_rho
+            R[i,j,7,7] = af*S/rho
 
-        # enforce continuity
+            # enforce continuity
 
-		if By != 0
-			sgnBt = sign(By)
-        else
-		    sgnBt = sign(Bz) 
-		end
+		    if By != 0
+			    sgnBt = sign(By)
+            else
+		        sgnBt = sign(Bz) 
+		    end
 
-        if sgnBt == 0
-            sgnBt = 1
-        end
+            if sgnBt == 0
+                sgnBt = 1
+            end
 
-		if cs >= la
-			for m=1:7
-				L[i,3,m] *= sgnBt 
-				L[i,5,m] *= sgnBt 
-				R[i,m,3] *= sgnBt 
-				R[i,m,5] *= sgnBt 
-			end
-		else
-			for m=1:7
-				L[i,1,m] *= sgnBt 
-				L[i,7,m] *= sgnBt 
-				R[i,m,1] *= sgnBt 
-				R[i,m,7] *= sgnBt 
-			end
-		end
-	end  # for i
+    		if cs >= la
+    			for m=1:7
+    				L[i,j,3,m] *= sgnBt 
+    				L[i,j,5,m] *= sgnBt 
+    				R[i,j,m,3] *= sgnBt 
+    				R[i,j,m,5] *= sgnBt 
+    			end
+    		else
+    			for m=1:7
+    				L[i,j,1,m] *= sgnBt 
+    				L[i,j,7,m] *= sgnBt 
+    				R[i,j,m,1] *= sgnBt 
+    				R[i,j,m,7] *= sgnBt 
+    			end
+    		end
+	    end  # for i
+    end # for j
 
-	return L, R
+    return sdata(L), sdata(R)
 end # compute_eigenvectors_S
 
 
-function compute_fluxes_S(q::Array{Float64,2}, u::Array{Float64,2})
+function compute_eigenvectors_S_vec(q::Array{Float64,3}, u::Array{Float64,3}, 
+								    F::Array{Float64,3}, gam::Float64) # Roe solver
+    const gam0 = 1-gam
+    const gam1 = (gam-1)/2
+    const gam2 = (gam-2)/(gam-1)
+    const gamS = (gam-1)/gam
+    
+    const Nqx = size(q,1)
+    const Nqy = size(q,2)
+
+    rho = zeros(Float64, Nqx, Nqy)
 	
-    const N = size(u,1)
+    # to cell boundary
 
-	F = zeros(Float64, N, 7)
+    @inbounds for j = 1:Nqy-1
+	    @inbounds for i = 1:Nqx-1
 
-    @inbounds @simd for i = 1:N
+            drho = abs(u[i,j,1] - u[i+1,j,1]) 
 
-        pt = u[i,8] + 0.5*(u[i,5]^2+u[i,6]^2+u[i,7]^2) 
+            if drho <= 1e-12
+    			rho[i,j] = 0.5 * (u[i,j,1] + u[i+1,j,1])
+    		else 
+    		    rho[i,j] = abs(gam0*drho/(u[i+1,j,1]^gam0 - u[i,j,1]^gam0))^(1/gam)
+    		end
+        end
+    end
 
-        F[i,1] = u[i,1]*u[i,2] 				    # rho * vx
-        F[i,2] = q[i,2]*u[i,2] + pt - u[i,5]^2 	# mvx*vx + Ptot - Bx^2
-        F[i,3] = q[i,3]*u[i,2] - u[i,5]*u[i,6]  # mvy*vx - Bx*By
-        F[i,4] = q[i,4]*u[i,2] - u[i,5]*u[i,7] 	# mvy*vx - Bx*Bz
-        F[i,5] = u[i,6]*u[i,2] - u[i,5]*u[i,3] 	# By*vx - Bx*vy
-        F[i,6] = u[i,7]*u[i,2] - u[i,5]*u[i,4]  # Bz*vx - Bx*vz
-        F[i,7] = q[i,8]*u[i,2]	               	# S*vx
+    vx = zeros(Float64, Nqx, Nqy)
+    vy = zeros(Float64, Nqx, Nqy)
+    vz = zeros(Float64, Nqx, Nqy)
+    Bx = zeros(Float64, Nqx, Nqy)
+    By = zeros(Float64, Nqx, Nqy)
+    Bz = zeros(Float64, Nqx, Nqy)
+    pg = zeros(Float64, Nqx, Nqy)
+        
+	@inbounds for j = 1:Nqy-1
+	    @inbounds @simd for i = 1:Nqx-1
+		
+            vx[i,j] = 0.5 * (u[i,j,2] + u[i+1,j,2])
+		    vy[i,j] = 0.5 * (u[i,j,3] + u[i+1,j,3])
+    		vz[i,j] = 0.5 * (u[i,j,4] + u[i+1,j,4])
+
+    		Bx[i,j] = 0.5 * (u[i,j,5] + u[i+1,j,5])
+    		By[i,j] = 0.5 * (u[i,j,6] + u[i+1,j,6])
+    		Bz[i,j] = 0.5 * (u[i,j,7] + u[i+1,j,7])
+
+    		pg[i,j] = 0.5 * (u[i,j,8] + u[i+1,j,8])
+        end
+    end
+    
+    S = Array{Float64}( Nqx, Nqy)
+    v2 = Array{Float64}( Nqx, Nqy)
+    bbn2 = Array{Float64}( Nqx, Nqy)
+    sqrt_rho = Array{Float64}(Nqx, Nqy)
+	
+    @inbounds for j = 1:Nqy
+	    @inbounds @simd for i = 1:Nqx
+
+            sqrt_rho[i,j] = sqrt(rho[i,j])
+            S[i,j] = pg[i,j]/rho[i,j]^(gam-1) 
+
+    		v2[i,j] = vx[i,j]^2 + vy[i,j]^2 + vz[i,j]^2
+
+    		B2 = Bx[i,j]^2 + By[i,j]^2 + Bz[i,j]^2
+    		bbn2[i,j] = B2/rho[i,j]
+        end
+    end
+
+    cs2 = Array{Float64}(Nqx, Nqy)
+    bnx2 = Array{Float64}(Nqx, Nqy)
+
+    @. cs2 = max(0, gam*abs(pg/rho))
+	@. bnx2 = Bx^2 / rho
+
+    cs =  Array{Float64}(Nqx, Nqy)
+    root =  Array{Float64}(Nqx, Nqy)
+    lf =  Array{Float64}(Nqx, Nqy) # fast mode
+    la =  Array{Float64}(Nqx, Nqy) # alven mode
+    ls =  Array{Float64}(Nqx, Nqy) # slow mode
+    Bt2 =  Array{Float64}(Nqx, Nqy)
+
+    @. cs = sqrt(cs2)
+    @. root = sqrt(max(0, (bbn2+cs2)^2 - 4*bnx2*cs2))
+    @. lf = sqrt(max(0, (bbn2+cs2+root)/2)) 	
+    @. la = sqrt(max(0, bnx2))					        
+	@. ls = sqrt(max(0, (bbn2+cs2-root)/2))	
+    @. Bt2 = By^2 + Bz^2
+
+    # resolve degeneracies
+	
+    sgnBx =  Array{Float64}(Nqx, Nqy)
+    @. sgnBx = sign(Bx) # -1, 0, 1
+    sgnBx[find(sgnBx .== 0)] = 1
+
+    bty =  Array{Float64}(Nqx, Nqy)
+    btz =  Array{Float64}(Nqx, Nqy)
+    @. bty = By/sqrt(Bt2)
+    @. btz = Bz/sqrt(Bt2)
+    bad = find(Bt2 .<= 1e-30)
+    bty[bad] = 1/sqrt(2)
+    btz[bad] = 1/sqrt(2)
+
+    dl2 =  Array{Float64}(Nqx, Nqy)
+    @. dl2 = lf^2 - ls^2
+
+    af = fill(1.0, Nqx, Nqy)
+    as = fill(1.0, Nqx, Nqy)
+
+    @inbounds for j = 1:Nqy
+	    @inbounds @simd for i = 1:Nqx-1
+
+            if dl2[i,j] >= 1e-30
+                af[i,j] = sqrt(max(0, cs2[i,j] - ls[i,j]^2)/dl2[i,j])
+                as[i,j] = sqrt(max(0, lf[i,j]^2 - cs2[i,j])/dl2[i,j])
+            end
+        end
+    end
+
+    L = Array{Float64}( Nqx, Nqy, 7,7) # left hand eigenvectors
+    R = Array{Float64}( Nqx, Nqy, 7,7) # right hand eigenvectors
+
+    @inbounds for j = 1:Nqy-1 # eigenvectors S version
+	    @inbounds @simd for i = 1:Nqx-1
+
+    		L[i,j,1,1] =  af[i,j]*(gamS*cs2[i,j]+lf[i,j]*vx[i,j]) - 
+                          as[i,j]*ls[i,j]*(bty[i,j]*vy[i,j]+btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,1,2] = -af[i,j]*lf[i,j]
+            L[i,j,1,3] =  as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,1,4] =  as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,1,5] =  cs[i,j]*as[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,1,6] =  cs[i,j]*as[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,1,7] =  af[i,j]*cs2[i,j]*rho[i,j]/(gam*S[i,j])
+    
+            L[i,j,2,1] =  btz[i,j]*vy[i,j] - bty[i,j]*vz[i,j]
+            L[i,j,2,2] =  0
+            L[i,j,2,3] = -btz[i,j]
+            L[i,j,2,4] =  bty[i,j]
+            L[i,j,2,5] = -btz[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,2,6] =  bty[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,2,7] =  0
+            
+            L[i,j,3,1] =  as[i,j]*(gamS*cs2[i,j]+ls[i,j]*vx[i,j]) + 
+                          af[i,j]*lf[i,j]*(bty[i,j]*vy[i,j]+btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,3,2] = -as[i,j]*ls[i,j]
+            L[i,j,3,3] = -af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,3,4] = -af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,3,5] = -cs[i,j]*af[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,3,6] = -cs[i,j]*af[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,3,7] =  as[i,j]*cs2[i,j]*rho[i,j]/(gam*S[i,j])
+            
+            L[i,j,4,1] =  1/gam
+            L[i,j,4,2] =  0
+            L[i,j,4,3] =  0
+            L[i,j,4,4] =  0
+            L[i,j,4,5] =  0
+            L[i,j,4,6] =  0
+            L[i,j,4,7] = -rho[i,j]/(gam*S[i,j])
+            
+            L[i,j,5,1] =  as[i,j]*(gamS*cs2[i,j]-ls[i,j]*vx[i,j]) - 
+                          af[i,j]*lf[i,j]*(bty[i,j]*vy[i,j]+btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,5,2] =  as[i,j]*ls[i,j]
+            L[i,j,5,3] =  af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,5,4] =  af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,5,5] = -cs[i,j]*af[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,5,6] = -cs[i,j]*af[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,5,7] =  as[i,j]*cs2[i,j]*rho[i,j]/(gam*S[i,j])
+            
+            L[i,j,6,1] =  btz[i,j]*vy[i,j] - bty[i,j]*vz[i,j]
+            L[i,j,6,2] =  0
+            L[i,j,6,3] = -btz[i,j]
+            L[i,j,6,4] =  bty[i,j]
+            L[i,j,6,5] =  btz[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,6,6] = -bty[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,6,7] =  0
+            
+            L[i,j,7,1] =  af[i,j]*(gamS*cs2[i,j]-lf[i,j]*vx[i,j]) + 
+                          as[i,j]*ls[i,j]*(bty[i,j]*vy[i,j]+btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,7,2] =  af[i,j]*lf[i,j]
+            L[i,j,7,3] = -as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,7,4] = -as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,7,5] =  cs[i,j]*as[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,7,6] =  cs[i,j]*as[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,7,7] =  af[i,j]*cs2[i,j]*rho[i,j]/(gam*S[i,j])
+
+	    	R[i,j,1,1] = af[i,j]
+            R[i,j,2,1] = af[i,j]*(vx[i,j]-lf[i,j])
+            R[i,j,3,1] = af[i,j]*vy[i,j] + as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,1] = af[i,j]*vz[i,j] + as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,1] = cs[i,j]*as[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,1] = cs[i,j]*as[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,1] = af[i,j]*S[i,j]/rho[i,j]
+            
+            R[i,j,1,2] =  0
+            R[i,j,2,2] =  0
+            R[i,j,3,2] = -btz[i,j]
+            R[i,j,4,2] =  bty[i,j]
+            R[i,j,5,2] = -btz[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,6,2] =  bty[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,7,2] =  0
+            
+            R[i,j,1,3] =  as[i,j]
+            R[i,j,2,3] =  as[i,j]*(vx[i,j]-ls[i,j])
+            R[i,j,3,3] =  as[i,j]*vy[i,j] - af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,3] =  as[i,j]*vz[i,j] - af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,3] = -cs[i,j]*af[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,3] = -cs[i,j]*af[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,3] =  as[i,j]*S[i,j]/rho[i,j]
+            
+            R[i,j,1,4] =  1
+            R[i,j,2,4] =  vx[i,j]
+            R[i,j,3,4] =  vy[i,j]
+            R[i,j,4,4] =  vz[i,j]
+            R[i,j,5,4] =  0
+            R[i,j,6,4] =  0
+            R[i,j,7,4] =  gam0*S[i,j]/rho[i,j]
+            
+            R[i,j,1,5] =  as[i,j]
+            R[i,j,2,5] =  as[i,j]*(vx[i,j]+ls[i,j])
+            R[i,j,3,5] =  as[i,j]*vy[i,j] + af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,5] =  as[i,j]*vz[i,j] + af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,5] = -cs[i,j]*af[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,5] = -cs[i,j]*af[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,5] =  as[i,j]*S[i,j]/rho[i,j]
+            
+            R[i,j,1,6] =  0
+            R[i,j,2,6] =  0
+            R[i,j,3,6] = -btz[i,j]
+            R[i,j,4,6] =  bty[i,j]
+            R[i,j,5,6] =  btz[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,6,6] = -bty[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,7,6] =  0
+            
+            R[i,j,1,7] = af[i,j]
+            R[i,j,2,7] = af[i,j]*(vx[i,j]+lf[i,j])
+            R[i,j,3,7] = af[i,j]*vy[i,j] - as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,7] = af[i,j]*vz[i,j] - as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,7] = cs[i,j]*as[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,7] = cs[i,j]*as[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,7] = af[i,j]*S[i,j]/rho[i,j]
+
+      	    end  # for i
+    end # for j
+            
+    @inbounds for m = 1:7
+        @inbounds for j = 1:Nqy-1
+    	    @inbounds @simd for i = 1:Nqx-1
+                L[i,j,1,m] *= 0.5/cs2[i,j]
+                L[i,j,2,m] *= 0.5
+                L[i,j,3,m] *= 0.5/cs2[i,j] # 4 missing ?
+                L[i,j,5,m] *= 0.5/cs2[i,j]
+                L[i,j,6,m] *= 0.5
+            	L[i,j,7,m] *= 0.5/cs2[i,j]
+            end
+        end
+    end
+    
+	# enforce continuity
+
+    sgnBt = sign.(By)
+    bad = find(By .== 0)
+    sgnBt[bad] = sign.(Bz[bad])
+    bad = find(sgnBt .== 0)
+    sgnBt[bad] = 1
+
+    @inbounds for m=1:7
+        @inbounds for j = 1:Nqy-1
+	        @inbounds @simd for i = 1:Nqx-1
+
+                if cs[i,j] >= la[i,j] 
+		            L[i,j,3,m] *= sgnBt[i,j] 
+        		    L[i,j,5,m] *= sgnBt[i,j] 
+		            R[i,j,m,3] *= sgnBt[i,j] 
+        		    R[i,j,m,5] *= sgnBt[i,j] 
+            	else
+        		    L[i,j,1,m] *= sgnBt[i,j] 
+		            L[i,j,7,m] *= sgnBt[i,j] 
+		            R[i,j,m,1] *= sgnBt[i,j] 
+		            R[i,j,m,7] *= sgnBt[i,j] 
+	            end
+            end 
+        end
+    end
+
+    return L, R
+end # compute_eigenvectors_S
+
+
+function compute_fluxes_S(q::Array{Float64,3}, u::Array{Float64,3})
+	
+    const Nux = size(u,1)
+    const Nuy = size(u,2)
+
+	F = zeros(Float64, Nux, Nuy, 7)
+
+    @inbounds for j = 1:Nuy
+        @inbounds @simd for i = 1:Nux
+
+            pt = u[i,j,8] + 0.5*(u[i,j,5]^2+u[i,j,6]^2+u[i,j,7]^2) 
+    
+            F[i,j,1] = u[i,j,1]*u[i,j,2] 				        # rho * vx
+            F[i,j,2] = q[i,j,2]*u[i,j,2] + pt - u[i,j,5]^2 	    # mvx*vx + Ptot - Bx^2
+            F[i,j,3] = q[i,j,3]*u[i,j,2] - u[i,j,5]*u[i,j,6]    # mvy*vx - Bx*By
+            F[i,j,4] = q[i,j,4]*u[i,j,2] - u[i,j,5]*u[i,j,7] 	# mvy*vx - Bx*Bz
+            F[i,j,5] = u[i,j,6]*u[i,j,2] - u[i,j,5]*u[i,j,3] 	# By*vx - Bx*vy
+            F[i,j,6] = u[i,j,7]*u[i,j,2] - u[i,j,5]*u[i,j,4]    # Bz*vx - Bx*vz
+            F[i,j,7] = q[i,j,8]*u[i,j,2]	               	    # S*vx
+        end
     end
 
 	return F # cell centered fluxes
 end
 
 
-function compute_primitive_variables_S(q::Array{Float64,2})
+function compute_primitive_variables_S(q::Array{Float64,3})
 
 	u = copy(q)  # = [rho,Mx,My,Mz,Bx,By,Bz,S]
 
-    @inbounds @simd for i = 1:size(u,1)
+    const gM1 = gam-1
 
-        u[i,2] /= u[i,1] # vx = Mx/rho
-        u[i,3] /= u[i,1] # vy
-        u[i,4] /= u[i,1] # vz
-        u[i,8] *= u[i,1]^(gam-1)# Pressure from S
+    @inbounds for j = 1:size(u,2)
+        @inbounds @simd for i = 1:size(u,1)
+            u[i,j,2] /= u[i,j,1]   # vx = Mx/rho
+            u[i,j,3] /= u[i,j,1]   # vy
+            u[i,j,4] /= u[i,j,1]   # vz
+            u[i,j,8] *= u[i,j,1]^gM1    # Pressure from S, doesnt vectorize
+        end
     end
 
 	return u # = [rho,vx,vy,vz,Bx,By,Bz,P(S)]; J&W eq. 2.23
@@ -692,349 +959,678 @@ end
 
 # Energy (E) - code
 
-function weno5_flux_difference_E(q_2D::Array{Float64,3})
+function weno5_flux_difference_E(q::Array{Float64,3})
 
-    const Nqx = size(q_2D,1) # q might be rotated
-    const Nqy = size(q_2D,2)
+    const Nqx = size(q,1) # q might be rotated
+    const Nqy = size(q,2)
 
-    dq = SharedArray{Float64}(Nqx, Nqy, 8)
-    bsy = SharedArray{Float64}(Nqx, Nqy)
-    bsz = SharedArray{Float64}(Nqx, Nqy)
+    u = compute_primitive_variables_E(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
 
-    @sync @parallel for j = 1:Nqy  # 1D along x for fixed y
+    a = compute_eigenvalues(u)
 
-        q = copy(q_2D[:,j,:])
-        
-        u = compute_primitive_variables_E(q) # [rho,vx,vy,vz,Bx,By,Bz,P(S)]  
-        
-        a = compute_eigenvalues(u)
+    F = compute_fluxes_E(q,u)
 
-	    F = compute_fluxes_E(q,u)
+    #L, R = compute_eigenvectors_E(q,u,F)
+    L, R = compute_eigenvectors_E_vec(q,u,F,gam)
+   
+    dF = weno5_interpolation(q,a,F,L,R)
 
-	    L, R = compute_eigenvectors_E(q,u,F,j)
+    dq =  zeros(Float64,Nqx, Nqy, 8)
+    bsy = zeros(Float64,Nqx, Nqy)
+    bsz = zeros(Float64,Nqx, Nqy)
 
-	    dF = weno5_interpolation(q,a,F,L,R,j)
-
-        @inbounds @simd for i = NBnd+1:Nqx-NBnd
-    		dq[i,j,1] = dF[i,1] - dF[i-1,1]
-    		dq[i,j,2] = dF[i,2] - dF[i-1,2]
-    		dq[i,j,3] = dF[i,3] - dF[i-1,3]
-    		dq[i,j,4] = dF[i,4] - dF[i-1,4]
+    @inbounds for j = NBnd:Nqy-NBnd+1
+        @inbounds @simd for i = NBnd:Nqx-NBnd+1
+    		dq[i,j,1] = dF[i,j,1] - dF[i-1,j,1]
+    		dq[i,j,2] = dF[i,j,2] - dF[i-1,j,2]
+    		dq[i,j,3] = dF[i,j,3] - dF[i-1,j,3]
+    		dq[i,j,4] = dF[i,j,4] - dF[i-1,j,4]
     		dq[i,j,5] = 0                   # fluxct scheme later
-    		dq[i,j,6] = dF[i,5] - dF[i-1,5]
-    		dq[i,j,7] = dF[i,6] - dF[i-1,6]
-	    	dq[i,j,8] = dF[i,7] - dF[i-1,7]
+    		dq[i,j,6] = dF[i,j,5] - dF[i-1,j,5]
+    		dq[i,j,7] = dF[i,j,6] - dF[i-1,j,6]
+	    	dq[i,j,8] = dF[i,j,7] - dF[i-1,j,7]
 	    end
 
-        @inbounds @simd for i = NBnd:Nqx-NBnd
-            bsy[i,j] = dF[i,5] + 0.5 *(u[i,5]*u[i,3] + u[i+1,5]*u[i+1,3])
-            bsz[i,j] = dF[i,6] + 0.5 *(u[i,5]*u[i,4] + u[i+1,5]*u[i+1,4])
+        @inbounds @simd for i = NBnd:Nqx-NBnd+1
+            bsy[i,j] = dF[i,j,5] + 0.5 *(u[i,j,5]*u[i,j,3] + u[i+1,j,5]*u[i+1,j,3])
+            bsz[i,j] = dF[i,j,6] + 0.5 *(u[i,j,5]*u[i,j,4] + u[i+1,j,5]*u[i+1,j,4])
         end
-
     end
-    
-    return sdata(dq),  sdata(bsy), sdata(bsz)
+        
+    return dq,  bsy, bsz
 end
 
+function compute_eigenvectors_E(q::Array{Float64,3}, u::Array{Float64,3}, 
+								F::Array{Float64,3}) # Roe solver
+    const gam0 = 1-gam
+    const gam1 = (gam-1)/2
+    const gam2 = (gam-2)/(gam-1)
 
-function compute_eigenvectors_E(q::Array{Float64,2}, u::Array{Float64,2}, 
-								F::Array{Float64,2},j) # Roe solver
-    const N = size(q,1)
+    const Nqx = size(q,1)
+    const Nqy = size(q,2)
 
-	L = zeros(Float64, N,7,7) # left hand eigenvectors
-	R = zeros(Float64, N,7,7) # right hand eigenvectors
+	L = zeros(Float64, Nqx, Nqy, 7,7) # left hand eigenvectors
+	R = zeros(Float64, Nqx, Nqy, 7,7) # right hand eigenvectors
 
-	@inbounds for i=2:N-1
+	@inbounds for j = 1:Nqy-1
+	    @inbounds for i = 1:Nqx-1
 		
-		rho = 0.5 * (u[i,1] + u[i+1,1]) # to cell boundary
+		    rho = 0.5 * (u[i,j,1] + u[i+1,j,1]) # to cell boundary
 
-		vx = 0.5 * (u[i,2] + u[i+1,2])
-		vy = 0.5 * (u[i,3] + u[i+1,3])
-		vz = 0.5 * (u[i,4] + u[i+1,4])
+		    vx = 0.5 * (u[i,j,2] + u[i+1,j,2])
+		    vy = 0.5 * (u[i,j,3] + u[i+1,j,3])
+		    vz = 0.5 * (u[i,j,4] + u[i+1,j,4])
+
+            Bx = 0.5 * (u[i,j,5] + u[i+1,j,5])
+		    By = 0.5 * (u[i,j,6] + u[i+1,j,6])
+		    Bz = 0.5 * (u[i,j,7] + u[i+1,j,7])
 		
-        Bx = 0.5 * (u[i,5] + u[i+1,5])
-		By = 0.5 * (u[i,6] + u[i+1,6])
-		Bz = 0.5 * (u[i,7] + u[i+1,7])
-		
-        E = 0.5 * (q[i,8] + q[i+1,8]) # q NOT u
+            E = 0.5 * (q[i,j,8] + q[i+1,j,8]) # q NOT u
 
-		v2 = vx^2 + vy^2 + vz^2
-		B2 = Bx^2 + By^2 + Bz^2
+		    v2 = vx^2 + vy^2 + vz^2
+		    B2 = Bx^2 + By^2 + Bz^2
 
-		pg = (gam-1) * (E - 0.5 * (rho*v2 + B2) )
+		    pg = (gam-1) * (E - 0.5 * (rho*v2 + B2) )
 
-		cs2 = max(0, gam*abs(pg/rho))
-		cs = sqrt(cs2)
-		bbn2 = B2/rho
-		bnx2 = Bx^2/rho
+		    cs2 = max(0, gam*abs(pg/rho))
+		    cs = sqrt(cs2)
+		    bbn2 = B2/rho
+		    bnx2 = Bx^2/rho
 
-		root = max(0, (bbn2+cs2)^2 - 4*bnx2*cs2)
-		root = sqrt(root)
+		    root = max(0, (bbn2+cs2)^2 - 4*bnx2*cs2)
+		    root = sqrt(root)
 
-		lf = sqrt(max(0, (bbn2+cs2+root)/2)) 	# fast mode
-		la = sqrt(max(0, bnx2))					# alven mode
-		ls = sqrt(max(0, (bbn2+cs2-root)/2))	# slow mode
+		    lf = sqrt(max(0, (bbn2+cs2+root)/2)) 	# fast mode
+		    la = sqrt(max(0, bnx2))					# alven mode
+		    ls = sqrt(max(0, (bbn2+cs2-root)/2))	# slow mode
 
-		# resolve degeneracies
+		    # resolve degeneracies
 
-		Bt2 = By^2 + Bz^2
-		sgnBx = sign(Bx) # -1, 0, 1
+    		Bt2 = By^2 + Bz^2
+    		sgnBx = sign(Bx) # -1, 0, 1
+    
+            if sgnBx == 0
+                sgnBx = 1
+            end
 
-        if sgnBx == 0
-            sgnBx = 1
-        end
+		    if Bt2 >= 1e-30
+		    	bty = By/sqrt(Bt2)
+		    	btz = Bz/sqrt(Bt2)
+            else
+		        bty = 1/sqrt(2)
+		        btz = 1/sqrt(2)
+		    end
 
-		if Bt2 >= 1e-30
-			bty = By/sqrt(Bt2)
-			btz = Bz/sqrt(Bt2)
-        else
-		    bty = 1/sqrt(2)
-		    btz = 1/sqrt(2)
-		end
+		    dl2 = lf^2 - ls^2
 
-		dl2 = lf^2 - ls^2
+		    if dl2 >= 1e-30
+                af = sqrt(max(0,cs2 - ls^2)/dl2)
+		    	as = sqrt(max(0,lf^2 - cs2)/dl2)
+            else
+		        af = 1.0
+		        as = 1.0
+		    end
 
-		if dl2 >= 1e-30
-            af = sqrt(max(0,cs2 - ls^2)/dl2)
-			as = sqrt(max(0,lf^2 - cs2)/dl2)
-        else
-		    af = 1.0
-		    as = 1.0
-		end
+		    # eigenvectors E version
 
-		# eigenvectors E version
+		    sqrt_rho = sqrt(rho)
 
-		sqrt_rho = sqrt(rho)
-
-		L[i,1,1] = af*(gam1*v2 + lf*vx) - as*ls*(bty*vy + btz*vz)*sgnBx
-        L[i,1,2] = af*(gam0*vx - lf)
-        L[i,1,3] = gam0*af*vy + as*ls*bty*sgnBx
-        L[i,1,4] = gam0*af*vz + as*ls*btz*sgnBx
-        L[i,1,5] = gam0*af*By + cs*as*bty*sqrt_rho
-        L[i,1,6] = gam0*af*Bz + cs*as*btz*sqrt_rho
-        L[i,1,7] = -gam0*af
+		    L[i,j,1,1] = af*(gam1*v2 + lf*vx) - as*ls*(bty*vy + btz*vz)*sgnBx
+            L[i,j,1,2] = af*(gam0*vx - lf)
+            L[i,j,1,3] = gam0*af*vy + as*ls*bty*sgnBx
+            L[i,j,1,4] = gam0*af*vz + as*ls*btz*sgnBx
+            L[i,j,1,5] = gam0*af*By + cs*as*bty*sqrt_rho
+            L[i,j,1,6] = gam0*af*Bz + cs*as*btz*sqrt_rho
+            L[i,j,1,7] = -gam0*af
                                                                    
-        L[i,2,1] = btz*vy - bty*vz
-        L[i,2,2] = 0
-        L[i,2,3] = -btz
-        L[i,2,4] = bty
-        L[i,2,5] = -btz*sgnBx*sqrt_rho
-        L[i,2,6] = bty*sgnBx*sqrt_rho
-        L[i,2,7] = 0
+            L[i,j,2,1] = btz*vy - bty*vz
+            L[i,j,2,2] = 0
+            L[i,j,2,3] = -btz
+            L[i,j,2,4] = bty
+            L[i,j,2,5] = -btz*sgnBx*sqrt_rho
+            L[i,j,2,6] = bty*sgnBx*sqrt_rho
+            L[i,j,2,7] = 0
 
-        L[i,3,1] = as*(gam1*v2 + ls*vx) + af*lf*(bty*vy + btz*vz)*sgnBx
-        L[i,3,2] = gam0*as*vx - as*ls
-        L[i,3,3] = gam0*as*vy - af*lf*bty*sgnBx
-        L[i,3,4] = gam0*as*vz - af*lf*btz*sgnBx
-        L[i,3,5] = gam0*as*By - cs*af*bty*sqrt_rho 
-        L[i,3,6] = gam0*as*Bz - cs*af*btz*sqrt_rho 
-        L[i,3,7] = -gam0*as
+            L[i,j,3,1] = as*(gam1*v2 + ls*vx) + af*lf*(bty*vy + btz*vz)*sgnBx
+            L[i,j,3,2] = gam0*as*vx - as*ls
+            L[i,j,3,3] = gam0*as*vy - af*lf*bty*sgnBx
+            L[i,j,3,4] = gam0*as*vz - af*lf*btz*sgnBx
+            L[i,j,3,5] = gam0*as*By - cs*af*bty*sqrt_rho 
+            L[i,j,3,6] = gam0*as*Bz - cs*af*btz*sqrt_rho 
+            L[i,j,3,7] = -gam0*as
                                                                    
-        L[i,4,1] = -cs2/gam0 - 0.5*v2
-        L[i,4,2] = vx
-        L[i,4,3] = vy
-        L[i,4,4] = vz
-        L[i,4,5] = By
-        L[i,4,6] = Bz
-        L[i,4,7] = -1
+            L[i,j,4,1] = -cs2/gam0 - 0.5*v2
+            L[i,j,4,2] = vx
+            L[i,j,4,3] = vy
+            L[i,j,4,4] = vz
+            L[i,j,4,5] = By
+            L[i,j,4,6] = Bz
+            L[i,j,4,7] = -1
                                                                    
-        L[i,5,1] = as*(gam1*v2 - ls*vx) - af*lf*(bty*vy + btz*vz)*sgnBx
-        L[i,5,2] = as*(gam0*vx+ls)
-        L[i,5,3] = gam0*as*vy + af*lf*bty*sgnBx
-        L[i,5,4] = gam0*as*vz + af*lf*btz*sgnBx
-        L[i,5,5] = gam0*as*By - cs*af*bty*sqrt_rho 
-        L[i,5,6] = gam0*as*Bz - cs*af*btz*sqrt_rho 
-        L[i,5,7] = -gam0*as
+            L[i,j,5,1] = as*(gam1*v2 - ls*vx) - af*lf*(bty*vy + btz*vz)*sgnBx
+            L[i,j,5,2] = as*(gam0*vx+ls)
+            L[i,j,5,3] = gam0*as*vy + af*lf*bty*sgnBx
+            L[i,j,5,4] = gam0*as*vz + af*lf*btz*sgnBx
+            L[i,j,5,5] = gam0*as*By - cs*af*bty*sqrt_rho 
+            L[i,j,5,6] = gam0*as*Bz - cs*af*btz*sqrt_rho 
+            L[i,j,5,7] = -gam0*as
                                                                    
-        L[i,6,1] = btz*vy - bty*vz
-        L[i,6,2] = 0
-        L[i,6,3] = -btz
-        L[i,6,4] = bty
-        L[i,6,5] = btz*sgnBx*sqrt_rho
-        L[i,6,6] = -bty*sgnBx*sqrt_rho
-        L[i,6,7] = 0
+            L[i,j,6,1] = btz*vy - bty*vz
+            L[i,j,6,2] = 0
+            L[i,j,6,3] = -btz
+            L[i,j,6,4] = bty
+            L[i,j,6,5] = btz*sgnBx*sqrt_rho
+            L[i,j,6,6] = -bty*sgnBx*sqrt_rho
+            L[i,j,6,7] = 0
                                                                    
-        L[i,7,1] = af*(gam1*v2 - lf*vx) + as*ls*(bty*vy + btz*vz)*sgnBx
-        L[i,7,2] = af*(gam0*vx + lf)
-        L[i,7,3] = gam0*af*vy - as*ls*bty*sgnBx
-        L[i,7,4] = gam0*af*vz - as*ls*btz*sgnBx
-        L[i,7,5] = gam0*af*By + cs*as*bty*sqrt_rho
-        L[i,7,6] = gam0*af*Bz + cs*as*btz*sqrt_rho
-        L[i,7,7] = -gam0*af
+            L[i,j,7,1] = af*(gam1*v2 - lf*vx) + as*ls*(bty*vy + btz*vz)*sgnBx
+            L[i,j,7,2] = af*(gam0*vx + lf)
+            L[i,j,7,3] = gam0*af*vy - as*ls*bty*sgnBx
+            L[i,j,7,4] = gam0*af*vz - as*ls*btz*sgnBx
+            L[i,j,7,5] = gam0*af*By + cs*as*bty*sqrt_rho
+            L[i,j,7,6] = gam0*af*Bz + cs*as*btz*sqrt_rho
+            L[i,j,7,7] = -gam0*af
 
-        for m=1:7
-            L[i,1,m] *= 0.5/cs2
-            L[i,2,m] *= 0.5
-            L[i,3,m] *= 0.5/cs2 
-			L[i,4,m] *= -gam0/cs2
-            L[i,5,m] *= 0.5/cs2
-            L[i,6,m] *= 0.5
-        	L[i,7,m] *= 0.5/cs2
-        end
+            for m=1:7
+                L[i,j,1,m] *= 0.5/cs2
+                L[i,j,2,m] *= 0.5
+                L[i,j,3,m] *= 0.5/cs2 
+			    L[i,j,4,m] *= -gam0/cs2
+                L[i,j,5,m] *= 0.5/cs2
+                L[i,j,6,m] *= 0.5
+        	    L[i,j,7,m] *= 0.5/cs2
+            end
 
-
-		R[i,1,1] = af
-        R[i,2,1] = af*(vx - lf)
-        R[i,3,1] = af*vy + as*ls*bty*sgnBx
-        R[i,4,1] = af*vz + as*ls*btz*sgnBx
-        R[i,5,1] = cs*as*bty/sqrt_rho
-        R[i,6,1] = cs*as*btz/sqrt_rho
-        R[i,7,1] = af*(lf^2 - lf*vx + 0.5*v2 - gam2*cs2) + as*ls*(bty*vy + btz*vz)*sgnBx 
+		    R[i,j,1,1] = af
+            R[i,j,2,1] = af*(vx - lf)
+            R[i,j,3,1] = af*vy + as*ls*bty*sgnBx
+            R[i,j,4,1] = af*vz + as*ls*btz*sgnBx
+            R[i,j,5,1] = cs*as*bty/sqrt_rho
+            R[i,j,6,1] = cs*as*btz/sqrt_rho
+            R[i,j,7,1] = af*(lf^2 - lf*vx + 0.5*v2 - gam2*cs2) + as*ls*(bty*vy + btz*vz)*sgnBx 
            
-        R[i,1,2] = 0
-        R[i,2,2] = 0
-        R[i,3,2] = -btz
-        R[i,4,2] = bty
-        R[i,5,2] = -btz*sgnBx/sqrt_rho
-        R[i,6,2] = bty*sgnBx/sqrt_rho
-        R[i,7,2] = bty*vz - btz*vy
+            R[i,j,1,2] = 0
+            R[i,j,2,2] = 0
+            R[i,j,3,2] = -btz
+            R[i,j,4,2] = bty
+            R[i,j,5,2] = -btz*sgnBx/sqrt_rho
+            R[i,j,6,2] = bty*sgnBx/sqrt_rho
+            R[i,j,7,2] = bty*vz - btz*vy
                                                       
-        R[i,1,3] = as
-        R[i,2,3] = as*(vx-ls)
-        R[i,3,3] = as*vy - af*lf*bty*sgnBx
-        R[i,4,3] = as*vz - af*lf*btz*sgnBx
-        R[i,5,3] = -cs*af*bty/sqrt_rho
-        R[i,6,3] = -cs*af*btz/sqrt_rho
-        R[i,7,3] = as*(ls^2 - ls*vx + 0.5*v2 - gam2*cs2) - af*lf*(bty*vy + btz*vz)*sgnBx
+            R[i,j,1,3] = as
+            R[i,j,2,3] = as*(vx-ls)
+            R[i,j,3,3] = as*vy - af*lf*bty*sgnBx
+            R[i,j,4,3] = as*vz - af*lf*btz*sgnBx
+            R[i,j,5,3] = -cs*af*bty/sqrt_rho
+            R[i,j,6,3] = -cs*af*btz/sqrt_rho
+            R[i,j,7,3] = as*(ls^2 - ls*vx + 0.5*v2 - gam2*cs2) - af*lf*(bty*vy + btz*vz)*sgnBx
             
-        R[i,1,4] = 1
-        R[i,2,4] = vx
-        R[i,3,4] = vy
-        R[i,4,4] = vz
-        R[i,5,4] = 0
-        R[i,6,4] = 0
-        R[i,7,4] = 0.5*v2
+            R[i,j,1,4] = 1
+            R[i,j,2,4] = vx
+            R[i,j,3,4] = vy
+            R[i,j,4,4] = vz
+            R[i,j,5,4] = 0
+            R[i,j,6,4] = 0
+            R[i,j,7,4] = 0.5*v2
                                                        
-        R[i,1,5] =  as
-        R[i,2,5] =  as*(vx + ls)
-        R[i,3,5] =  as*vy + af*lf*bty*sgnBx
-        R[i,4,5] =  as*vz + af*lf*btz*sgnBx
-        R[i,5,5] = -cs*af*bty/sqrt_rho
-        R[i,6,5] = -cs*af*btz/sqrt_rho
-        R[i,7,5] =  as*(ls^2 + ls*vx + 0.5*v2 - gam2*cs2) + af*lf*(bty*vy + btz*vz)*sgnBx
+            R[i,j,1,5] =  as
+            R[i,j,2,5] =  as*(vx + ls)
+            R[i,j,3,5] =  as*vy + af*lf*bty*sgnBx
+            R[i,j,4,5] =  as*vz + af*lf*btz*sgnBx
+            R[i,j,5,5] = -cs*af*bty/sqrt_rho
+            R[i,j,6,5] = -cs*af*btz/sqrt_rho
+            R[i,j,7,5] =  as*(ls^2 + ls*vx + 0.5*v2 - gam2*cs2) + af*lf*(bty*vy + btz*vz)*sgnBx
             
-        R[i,1,6] =  0
-        R[i,2,6] =  0
-        R[i,3,6] = -btz
-        R[i,4,6] =  bty
-        R[i,5,6] =  btz*sgnBx/sqrt_rho
-        R[i,6,6] = -bty*sgnBx/sqrt_rho
-        R[i,7,6] =  bty*vz - btz*vy
+            R[i,j,1,6] =  0
+            R[i,j,2,6] =  0
+            R[i,j,3,6] = -btz
+            R[i,j,4,6] =  bty
+            R[i,j,5,6] =  btz*sgnBx/sqrt_rho
+            R[i,j,6,6] = -bty*sgnBx/sqrt_rho
+            R[i,j,7,6] =  bty*vz - btz*vy
                                                       
-        R[i,1,7] = af
-        R[i,2,7] = af*(vx + lf)
-        R[i,3,7] = af*vy - as*ls*bty*sgnBx
-        R[i,4,7] = af*vz - as*ls*btz*sgnBx
-        R[i,5,7] = cs*as*bty/sqrt_rho
-        R[i,6,7] = cs*as*btz/sqrt_rho
-        R[i,7,7] = af*(lf^2 + lf*vx + 0.5*v2 - gam2*cs2) - as*ls*(bty*vy + btz*vz)*sgnBx
+            R[i,j,1,7] = af
+            R[i,j,2,7] = af*(vx + lf)
+            R[i,j,3,7] = af*vy - as*ls*bty*sgnBx
+            R[i,j,4,7] = af*vz - as*ls*btz*sgnBx
+            R[i,j,5,7] = cs*as*bty/sqrt_rho
+            R[i,j,6,7] = cs*as*btz/sqrt_rho
+            R[i,j,7,7] = af*(lf^2 + lf*vx + 0.5*v2 - gam2*cs2) - as*ls*(bty*vy + btz*vz)*sgnBx
 
-		 # enforce continuity
+		    # enforce continuity
 
-		if By != 0
-			sgnBt = sign(By)
-        else
-            sgnBt = sign(Bz)
-		end
+		    if By != 0
+			    sgnBt = sign(By)
+            else
+                sgnBt = sign(Bz)
+		    end
 
-        if sgnBt == 0
-            sgnBt = 1
-        end
+            if sgnBt == 0
+                sgnBt = 1
+            end
 
-		if cs >= la
-			for m=1:7
-				L[i,3,m] *= sgnBt 
-				L[i,5,m] *= sgnBt 
-				R[i,m,3] *= sgnBt 
-				R[i,m,5] *= sgnBt 
-			end
-		else
-			for m=1:7
-				L[i,1,m] *= sgnBt 
-				L[i,7,m] *= sgnBt 
-				R[i,m,1] *= sgnBt 
-				R[i,m,7] *= sgnBt 
-			end
-		end
-	end  # for i
+		    if cs >= la
+			    for m=1:7
+				    L[i,j,3,m] *= sgnBt 
+				    L[i,j,5,m] *= sgnBt 
+				    R[i,j,m,3] *= sgnBt 
+				    R[i,j,m,5] *= sgnBt 
+			    end
+		    else
+			    for m=1:7
+				    L[i,j,1,m] *= sgnBt 
+				    L[i,j,7,m] *= sgnBt 
+				    R[i,j,m,1] *= sgnBt 
+				    R[i,j,m,7] *= sgnBt 
+			    end
+		    end
+	    end  # for i
+	end  # for j
 
 	return L, R
 end # compute_eigenvectors_E
 
-function compute_fluxes_E(q::Array{Float64,2}, u::Array{Float64,2})
+
+
+function compute_eigenvectors_E_vec(q::Array{Float64,3}, u::Array{Float64,3}, 
+								F::Array{Float64,3}, gam::Float64) # Roe solver
+    const gM1 = gam-1
+    const gam0 = 1-gam
+    const gam1 = (gam-1)/2
+    const gam2 = (gam-2)/(gam-1)
+
+    const Nqx = size(q,1)
+    const Nqy = size(q,2)
+
+    rho = zeros(Float64, Nqx, Nqy)
+    sqrt_rho = zeros(Float64, Nqx, Nqy)
+    vx = zeros(Float64, Nqx, Nqy)
+    vy = zeros(Float64, Nqx, Nqy)
+    vz = zeros(Float64, Nqx, Nqy)
+    Bx = zeros(Float64, Nqx, Nqy)
+    By = zeros(Float64, Nqx, Nqy)
+    Bz = zeros(Float64, Nqx, Nqy)
+    E = zeros(Float64, Nqx, Nqy)
+
+	@inbounds for j = 1:Nqy-1
+	    @inbounds @simd for i = 1:Nqx-1
+		
+            rho[i,j] = 0.5 * (u[i,j,1] + u[i+1,j,1]) # to cell boundary
+            
+            sqrt_rho[i,j] = sqrt(rho[i,j])
+
+		    vx[i,j] = 0.5 * (u[i,j,2] + u[i+1,j,2])
+		    vy[i,j] = 0.5 * (u[i,j,3] + u[i+1,j,3])
+		    vz[i,j] = 0.5 * (u[i,j,4] + u[i+1,j,4])
+
+            Bx[i,j] = 0.5 * (u[i,j,5] + u[i+1,j,5])
+		    By[i,j] = 0.5 * (u[i,j,6] + u[i+1,j,6])
+		    Bz[i,j] = 0.5 * (u[i,j,7] + u[i+1,j,7])
+		
+            E[i,j] = 0.5 * (q[i,j,8] + q[i+1,j,8]) # q NOT u
+        end
+    end
+
+    v2 = Array{Float64}( Nqx, Nqy)
+    pg = Array{Float64}( Nqx, Nqy)
+    bbn2 = Array{Float64}( Nqx, Nqy)
+
+	@inbounds for j = 1:Nqy
+	    @inbounds @simd for i = 1:Nqx
+
+            B2 = (Bx[i,j]^2 + By[i,j]^2 + Bz[i,j]^2)
+
+            v2[i,j] = vx[i,j]^2 + vy[i,j]^2 + vz[i,j]^2
+	        pg[i,j] = (gM1) * (E[i,j] - 0.5 * (rho[i,j]*v2[i,j] + B2) )
+            bbn2[i,j] = B2[i,j]/rho[i,j]
+        end
+    end
+
+    cs2 = Array{Float64}(Nqx, Nqy)
+    bnx2 = Array{Float64}(Nqx, Nqy)
+
+	@inbounds for j = 1:Nqy
+	    @inbounds @simd for i = 1:Nqx
+
+	        cs2[i,j] = max(0, gam*abs(pg[i,j]/rho[i,j]))
+	        bnx2[i,j] = Bx[i,j]^2 / rho[i,j]
+        end
+    end
+
+    cs =  Array{Float64}(Nqx, Nqy)
+    root =  Array{Float64}(Nqx, Nqy)
+    lf =  Array{Float64}(Nqx, Nqy) # fast mode
+    la =  Array{Float64}(Nqx, Nqy) # alven mode
+    ls =  Array{Float64}(Nqx, Nqy) # slow mode
+    Bt2 =  Array{Float64}(Nqx, Nqy)
+
+    @. cs = sqrt(cs2)
+    @. root = sqrt.(max.(0, (bbn2+cs2)^2 - 4*bnx2*cs2))
+    @. lf = sqrt.(max.(0, (bbn2+cs2+root)/2)) 	
+    @. la = sqrt.(max.(0, bnx2))					        
+	@. ls = sqrt.(max.(0, (bbn2+cs2-root)/2))	
+    @. Bt2 = By^2 + Bz^2
+
+	# resolve degeneracies
 	
-    const N = size(u,1)
+    sgnBx =  Array{Float64}(Nqx, Nqy)
+    @. sgnBx = sign(Bx) # -1, 0, 1
+    sgnBx[find(sgnBx .== 0)] = 1
 
-	F = zeros(Float64, N, 7)
+    bty =  Array{Float64}(Nqx, Nqy)
+    btz =  Array{Float64}(Nqx, Nqy)
+    @. bty = By/sqrt(Bt2)
+    @. btz = Bz/sqrt(Bt2)
+    bad = find(Bt2 .<= 1e-30)
+    bty[bad] = 1/sqrt(2)
+    btz[bad] = 1/sqrt(2)
 
-    @inbounds @simd for i = 1:N
-	    pt = u[i,8] + 0.5*(u[i,5]^2+u[i,6]^2+u[i,7]^2) # total pressure from E
-    	vB = u[i,2]*u[i,5] + u[i,3]*u[i,6] + u[i,4]*u[i,7] # v*B
+    dl2 =  Array{Float64}(Nqx, Nqy)
+    @. dl2 = lf^2 - ls^2
 
-        F[i,1] = u[i,1]*u[i,2] 					    # rho * vx
-	    F[i,2] = q[i,2]*u[i,2] + pt - u[i,5]^2	    # mvx*vx + Ptot - Bx^2
-        F[i,3] = q[i,3]*u[i,2] - u[i,5]*u[i,6] 	    # mvy*vx - Bx*By
-        F[i,4] = q[i,4]*u[i,2] - u[i,5]*u[i,7] 	    # mvy*vx - Bx*Bz
-        F[i,5] = u[i,6]*u[i,2] - u[i,5]*u[i,3] 	    # By*vx - Bx*vy
-        F[i,6] = u[i,7]*u[i,2] - u[i,5]*u[i,4]   	# Bz*vx - Bx*vz
-        F[i,7] = (q[i,8]+pt)*u[i,2] - u[i,5]*vB	    # (E+Ptot)*vx - Bx * (v*B)
+    af = fill(1.0, Nqx, Nqy)
+    as = fill(1.0, Nqx, Nqy)
+
+    @inbounds for j = 1:Nqy
+	    @inbounds @simd for i = 1:Nqx-1
+
+            if dl2[i,j] >= 1e-30
+                af[i,j] = sqrt(max(0, cs2[i,j] - ls[i,j].^2)./dl2[i,j])
+                as[i,j] = sqrt(max(0, lf[i,j].^2 - cs2[i,j])./dl2[i,j])
+            end
+        end
+    end
+
+    L = Array{Float64}( Nqx, Nqy, 7,7) # left hand eigenvectors
+    R = Array{Float64}( Nqx, Nqy, 7,7) # right hand eigenvectors
+
+    @inbounds for j = 1:Nqy-1 # eigenvectors E version
+	    @inbounds @simd for i = 1:Nqx-1
+
+            L[i,j,1,1] = af[i,j] * (gam1*v2[i,j] + lf[i,j]*vx[i,j]) - 
+                         as[i,j]*ls[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j]) * sgnBx[i,j]
+            L[i,j,1,2] = af[i,j]*(gam0*vx[i,j] - lf[i,j])
+            L[i,j,1,3] = gam0*af[i,j]*vy[i,j] + as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,1,4] = gam0*af[i,j]*vz[i,j] + as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,1,5] = gam0*af[i,j]*By[i,j] + cs[i,j]*as[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,1,6] = gam0*af[i,j]*Bz[i,j] + cs[i,j]*as[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,1,7] = -gam0*af[i,j]
+      
+            L[i,j,2,1] = btz[i,j]*vy[i,j] - bty[i,j]*vz[i,j]
+            L[i,j,2,2] = 0
+            L[i,j,2,3] = -btz[i,j]
+            L[i,j,2,4] = bty[i,j]
+            L[i,j,2,5] = -btz[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,2,6] = bty[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,2,7] = 0
+
+            L[i,j,3,1] = as[i,j]*(gam1*v2[i,j] + ls[i,j]*vx[i,j]) + 
+                         af[i,j]*lf[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,3,2] = gam0*as[i,j]*vx[i,j] - as[i,j]*ls[i,j]
+            L[i,j,3,3] = gam0*as[i,j]*vy[i,j] - af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,3,4] = gam0*as[i,j]*vz[i,j] - af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,3,5] = gam0*as[i,j]*By[i,j] - cs[i,j]*af[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,3,6] = gam0*as[i,j]*Bz[i,j] - cs[i,j]*af[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,3,7] = -gam0*as[i,j]
+                                                                   
+            L[i,j,4,1] = -cs2[i,j]/gam0 - 0.5*v2[i,j]
+            L[i,j,4,2] = vx[i,j]
+            L[i,j,4,3] = vy[i,j]
+            L[i,j,4,4] = vz[i,j]
+            L[i,j,4,5] = By[i,j]
+            L[i,j,4,6] = Bz[i,j]
+            L[i,j,4,7] = -1
+                                                                   
+            L[i,j,5,1] = as[i,j]*(gam1*v2[i,j] - ls[i,j]*vx[i,j]) - 
+                         af[i,j]*lf[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,5,2] = as[i,j]*(gam0*vx[i,j]+ls[i,j])
+            L[i,j,5,3] = gam0*as[i,j]*vy[i,j] + af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,5,4] = gam0*as[i,j]*vz[i,j] + af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,5,5] = gam0*as[i,j]*By[i,j] - cs[i,j]*af[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,5,6] = gam0*as[i,j]*Bz[i,j] - cs[i,j]*af[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,5,7] = -gam0*as[i,j]
+                                                                   
+            L[i,j,6,1] = btz[i,j]*vy[i,j] - bty[i,j]*vz[i,j]
+            L[i,j,6,2] = 0
+            L[i,j,6,3] = -btz[i,j]
+            L[i,j,6,4] = bty[i,j]
+            L[i,j,6,5] = btz[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,6,6] = -bty[i,j]*sgnBx[i,j]*sqrt_rho[i,j]
+            L[i,j,6,7] = 0
+                                                                   
+            L[i,j,7,1] = af[i,j]*(gam1*v2[i,j] - lf[i,j]*vx[i,j]) + 
+                         as[i,j]*ls[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j]
+            L[i,j,7,2] = af[i,j]*(gam0*vx[i,j] + lf[i,j])
+            L[i,j,7,3] = gam0*af[i,j]*vy[i,j] - as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            L[i,j,7,4] = gam0*af[i,j]*vz[i,j] - as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            L[i,j,7,5] = gam0*af[i,j]*By[i,j] + cs[i,j]*as[i,j]*bty[i,j]*sqrt_rho[i,j]
+            L[i,j,7,6] = gam0*af[i,j]*Bz[i,j] + cs[i,j]*as[i,j]*btz[i,j]*sqrt_rho[i,j]
+            L[i,j,7,7] = -gam0*af[i,j]
+
+		    R[i,j,1,1] = af[i,j]
+            R[i,j,2,1] = af[i,j]*(vx[i,j] - lf[i,j])
+            R[i,j,3,1] = af[i,j]*vy[i,j] + as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,1] = af[i,j]*vz[i,j] + as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,1] = cs[i,j]*as[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,1] = cs[i,j]*as[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,1] = af[i,j]*(lf[i,j]^2 - lf[i,j]*vx[i,j] + 0.5*v2[i,j] - gam2*cs2[i,j]) +
+                         as[i,j]*ls[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j] 
+           
+            R[i,j,1,2] = 0
+            R[i,j,2,2] = 0
+            R[i,j,3,2] = -btz[i,j]
+            R[i,j,4,2] = bty[i,j]
+            R[i,j,5,2] = -btz[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,6,2] = bty[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,7,2] = bty[i,j]*vz[i,j] - btz[i,j]*vy[i,j]
+                                                      
+            R[i,j,1,3] = as[i,j]
+            R[i,j,2,3] = as[i,j]*(vx[i,j]-ls[i,j])
+            R[i,j,3,3] = as[i,j]*vy[i,j] - af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,3] = as[i,j]*vz[i,j] - af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,3] = -cs[i,j]*af[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,3] = -cs[i,j]*af[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,3] = as[i,j]*(ls[i,j]^2 - ls[i,j]*vx[i,j] + 0.5*v2[i,j] - gam2*cs2[i,j]) - 
+                         af[i,j]*lf[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j]
+            
+            R[i,j,1,4] = 1
+            R[i,j,2,4] = vx[i,j]
+            R[i,j,3,4] = vy[i,j]
+            R[i,j,4,4] = vz[i,j]
+            R[i,j,5,4] = 0
+            R[i,j,6,4] = 0
+            R[i,j,7,4] = 0.5*v2[i,j]
+                                                       
+            R[i,j,1,5] =  as[i,j]
+            R[i,j,2,5] =  as[i,j]*(vx[i,j] + ls[i,j])
+            R[i,j,3,5] =  as[i,j]*vy[i,j] + af[i,j]*lf[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,5] =  as[i,j]*vz[i,j] + af[i,j]*lf[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,5] = -cs[i,j]*af[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,5] = -cs[i,j]*af[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,5] =  as[i,j]*(ls[i,j]^2 + ls[i,j]*vx[i,j] + 0.5*v2[i,j] - gam2*cs2[i,j]) + 
+                          af[i,j]*lf[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j]
+            
+            R[i,j,1,6] =  0
+            R[i,j,2,6] =  0
+            R[i,j,3,6] = -btz[i,j]
+            R[i,j,4,6] =  bty[i,j]
+            R[i,j,5,6] =  btz[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,6,6] = -bty[i,j]*sgnBx[i,j]/sqrt_rho[i,j]
+            R[i,j,7,6] =  bty[i,j]*vz[i,j] - btz[i,j]*vy[i,j]
+                                                      
+            R[i,j,1,7] = af[i,j]
+            R[i,j,2,7] = af[i,j]*(vx[i,j] + lf[i,j])
+            R[i,j,3,7] = af[i,j]*vy[i,j] - as[i,j]*ls[i,j]*bty[i,j]*sgnBx[i,j]
+            R[i,j,4,7] = af[i,j]*vz[i,j] - as[i,j]*ls[i,j]*btz[i,j]*sgnBx[i,j]
+            R[i,j,5,7] = cs[i,j]*as[i,j]*bty[i,j]/sqrt_rho[i,j]
+            R[i,j,6,7] = cs[i,j]*as[i,j]*btz[i,j]/sqrt_rho[i,j]
+            R[i,j,7,7] = af[i,j]*(lf[i,j]^2 + lf[i,j]*vx[i,j] + 0.5*v2[i,j] - gam2*cs2[i,j]) - 
+                         as[i,j]*ls[i,j]*(bty[i,j]*vy[i,j] + btz[i,j]*vz[i,j])*sgnBx[i,j]
+	    end  # for i
+	end  # for j
+
+    @inbounds for m = 1:7
+        @inbounds for j = 1:Nqy-1
+    	    @inbounds @simd for i = 1:Nqx-1
+                L[i,j,1,m] *= 0.5/cs2[i,j]
+                L[i,j,2,m] *= 0.5
+                L[i,j,3,m] *= 0.5/cs2[i,j]
+		    	L[i,j,4,m] *= -gam0/cs2[i,j]
+                L[i,j,5,m] *= 0.5/cs2[i,j]
+                L[i,j,6,m] *= 0.5
+            	L[i,j,7,m] *= 0.5/cs2[i,j]
+            end
+        end
+    end
+
+	# enforce continuity
+
+	sgnBt = sign.(By)
+    bad = find(By .== 0)
+    sgnBt[bad] = sign.(Bz[bad])
+    bad = find(sgnBt .== 0)
+    sgnBt[bad] = 1
+
+    @inbounds for m=1:7
+        @inbounds for j = 1:Nqy-1
+	        @inbounds @simd for i = 1:Nqx-1
+                if cs[i,j] >= la[i,j] 
+		            L[i,j,3,m] *= sgnBt[i,j] 
+        		    L[i,j,5,m] *= sgnBt[i,j] 
+		            R[i,j,m,3] *= sgnBt[i,j] 
+        		    R[i,j,m,5] *= sgnBt[i,j] 
+            	else
+        		    L[i,j,1,m] *= sgnBt[i,j] 
+		            L[i,j,7,m] *= sgnBt[i,j] 
+		            R[i,j,m,1] *= sgnBt[i,j] 
+		            R[i,j,m,7] *= sgnBt[i,j] 
+	            end
+            end 
+        end
+    end
+
+	return L, R
+end # compute_eigenvectors_E
+
+function compute_fluxes_E(q::Array{Float64,3}, u::Array{Float64,3})
+	
+    const Nux = size(u,1)
+    const Nuy = size(u,2)
+
+    F = Array{Float64}(Nux, Nuy, 7)
+
+    @inbounds for j = 1:Nuy
+        @inbounds @simd for i = 1:Nux
+
+	        pt = u[i,j,8] + 0.5*(u[i,j,5]^2+u[i,j,6]^2+u[i,j,7]^2) # total pressure from E
+    	    vB = u[i,j,2]*u[i,j,5] + u[i,j,3]*u[i,j,6] + u[i,j,4]*u[i,j,7] # v*B
+
+            F[i,j,1] = u[i,j,1]*u[i,j,2] 					    # rho * vx
+	        F[i,j,2] = q[i,j,2]*u[i,j,2] + pt - u[i,j,5]^2	    # mvx*vx + Ptot - Bx^2
+            F[i,j,3] = q[i,j,3]*u[i,j,2] - u[i,j,5]*u[i,j,6] 	# mvy*vx - Bx*By
+            F[i,j,4] = q[i,j,4]*u[i,j,2] - u[i,j,5]*u[i,j,7] 	# mvy*vx - Bx*Bz
+            F[i,j,5] = u[i,j,6]*u[i,j,2] - u[i,j,5]*u[i,j,3] 	# By*vx - Bx*vy
+            F[i,j,6] = u[i,j,7]*u[i,j,2] - u[i,j,5]*u[i,j,4]   	# Bz*vx - Bx*vz
+            F[i,j,7] = (q[i,j,8]+pt)*u[i,j,2] - u[i,j,5]*vB	    # (E+Ptot)*vx - Bx * (v*B)
+        end
     end
 
 	return F
 end
-function compute_primitive_variables_E(q::Array{Float64,2})
+function compute_primitive_variables_E(q::Array{Float64,3})
 
-	u = copy(q) # = [rho,Mx,My,Mz,Bx,By,Bz,E]
+    const gM1 = gam-1
+
+    const Nqx = size(q,1)
+    const Nqy = size(q,2)
+
+    u = Array{Float64}(Nqx,Nqy,8) # = [rho,Mx,My,Mz,Bx,By,Bz,E]
 	
-    @inbounds @simd for i = 1:size(u,1)
-	    u[i,2] /= u[i,1] # vx = Mx/rho
-	    u[i,3] /= u[i,1] # vy
-    	u[i,4] /= u[i,1] # vz
+    @inbounds for j = 1:Nqy
+        @inbounds @simd for i = 1:Nqx
+        
+            u[i,j,1] = q[i,j,1]          # rho
+            u[i,j,2] = q[i,j,2]/q[i,j,1] # vx = Mx/rho
+    	    u[i,j,3] = q[i,j,3]/q[i,j,1] # vy
+        	u[i,j,4] = q[i,j,4]/q[i,j,1] # vz
+            u[i,j,5] = q[i,j,5]          # Bx
+            u[i,j,6] = q[i,j,6]          # By
+            u[i,j,7] = q[i,j,7]          # Bz
+        end
+    end
 
-	    v2 = u[i,2]^2 + u[i,3]^2 + u[i,4]^2
-	    B2 = u[i,5]^2 + u[i,6]^2 + u[i,7]^2
+    @inbounds for j = 1:Nqy
+        @inbounds @simd for i = 1:Nqx
 
-	    u[i,8] -= 0.5 * (u[i,1]*v2 + B2) # Pressure from E
-	    u[i,8] *= (gam-1)
+    	    v2 = u[i,j,2]^2 + u[i,j,3]^2 + u[i,j,4]^2
+	        B2 = u[i,j,5]^2 + u[i,j,6]^2 + u[i,j,7]^2
+
+            u[i,j,8] = gM1 * (q[i,j,8] - 0.5 * (q[i,j,1]*v2 + B2)) # Pressure from E
+        end
     end
 
 	return u # = [rho,vx,vy,vz,Bx,By,Bz,P(E)] ; B&W eq. 2.23
 end
 
-function compute_eigenvalues(u::Array{Float64,2})
+function compute_eigenvalues(u::Array{Float64,3})
 
-    N = size(u, 1)
+    const Nux = size(u, 1)
+    const Nuy = size(u, 2)
 
-	B2  = u[:,5].^2 + u[:,6].^2 + u[:,7].^2
-	vdB = u[:,2].*u[:,5] + u[:,3].*u[:,6] + u[:,4].*u[:,7]
+    B2 = Array{Float64}(Nux, Nuy)
+    vdB = Array{Float64}(Nux, Nuy)
+    cs2 = Array{Float64}(Nux, Nuy)
+    bnx2 = Array{Float64}(Nux, Nuy)
 
-	cs2 = gam * abs.(u[:,8]./u[:,1])
-	bad = find(cs2 .< 0)
-	cs2[bad] = 0
+    @inbounds for j = 1:Nuy 
+        @inbounds @simd for i = 1:Nux
 
-	bbn2 = B2./u[:,1]
-	bnx2 = u[:,5].^2./u[:,1]
-
-	root = safe_sqrt((bbn2+cs2).^2 - 4*bnx2.*cs2)
-
-	lf = safe_sqrt(0.5*(bbn2+cs2+root))
-	la = safe_sqrt(bnx2)
-	ls = safe_sqrt(0.5*(bbn2+cs2-root))
-
-	a = zeros(Float64, N, 7) # eigenvalues cell center
-
-    @inbounds @simd for i=1:N 
-        a[i,1] = u[i,2] - lf[i] # u is rotated, integration is along 2 direction
-    	a[i,2] = u[i,2] - la[i]
-	    a[i,3] = u[i,2] - ls[i]
-	    a[i,4] = u[i,2]
-    	a[i,5] = u[i,2] + ls[i]
-    	a[i,6] = u[i,2] + la[i]
-    	a[i,7] = u[i,2] + lf[i]
+            B2[i,j]  = u[i,j,5]^2 + u[i,j,6]^2 + u[i,j,7]^2
+            vdB[i,j] = u[i,j,2]*u[i,j,5] + u[i,j,3]*u[i,j,6] + u[i,j,4]*u[i,j,7]
+            cs2[i,j] = max(0,gam * abs(u[i,j,8]/u[i,j,1]))
+            bnx2[i,j] = max(0, u[i,j,5]^2/u[i,j,1])
+        end
     end
 
-	return a #  J&W 2.27+1
+    bbn2 = Array{Float64}(Nux, Nuy)
+    @. bbn2 = B2/u[:,:,1]
 
+    root = Array{Float64}(Nux, Nuy)
+
+    @inbounds for j = 1:Nuy 
+        @inbounds @simd for i = 1:Nux    
+            root[i,j] = sqrt(max(0,(bbn2[i,j]+cs2[i,j])^2 - 4*bnx2[i,j]*cs2[i,j]))
+        end
+    end
+
+   lf = Array{Float64}(Nux, Nuy)
+   ls = Array{Float64}(Nux, Nuy)
+   la = Array{Float64}(Nux, Nuy)
+
+   @inbounds for j = 1:Nuy 
+       @inbounds @simd for i = 1:Nux
+           lf[i,j] = sqrt(max(0, 0.5*(bbn2[i,j] + cs2[i,j] + root[i,j])))
+           ls[i,j] = sqrt(max(0, 0.5*(bbn2[i,j] + cs2[i,j] - root[i,j])))
+       end
+   end
+
+   @. la = sqrt(bnx2)
+
+   a = Array{Float64}(Nux, Nuy, 7) # eigenvalues cell center
+
+   @inbounds for j = 1:Nuy 
+        @inbounds @simd for i = 1:Nux 
+            a[i,j,1] = u[i,j,2] - lf[i,j] # u is rotated, integration is along 2 direction
+       	    a[i,j,2] = u[i,j,2] - la[i,j]
+            a[i,j,3] = u[i,j,2] - ls[i,j]
+            a[i,j,4] = u[i,j,2]
+       	    a[i,j,5] = u[i,j,2] + ls[i,j]
+       	    a[i,j,6] = u[i,j,2] + la[i,j]
+   	        a[i,j,7] = u[i,j,2] + lf[i,j]
+        end
+   end
+
+   return a #  J&W 2.27+1
 end
 
 function interpolateB_center2face(q::Array{Float64,3})
@@ -1071,22 +1667,33 @@ function boundaries!(q::Array{Float64,3}, fsy::Array{Float64,2},gsx::Array{Float
         q[i, Ny-1,:] = q[i,Ny-NBnd,:]
         q[i, Ny-2,:] = q[i,Ny-NBnd,:]
     end
- 
-    for j = 2:Ny-1
-        fsy[NBnd-1,j] = fsy[NBnd,j]
-        fsy[Nx-NBnd+1,j] = fsy[Nx,j]
-    end
 
-    @inbounds @simd for i = 2:Nx-1
-        gsx[i,2] = gsx[i,NBnd]
-        gsx[i,Ny-NBnd+1] = gsx[i,Ny]
-    end
+    fsy[1,:]  = fsy[2,:]    = fsy[3,:]
+    fsy[:,1]  = fsy[:,2]    = fsy[:,3]
+    fsy[Nx,:] = fsy[Nx-1,:] = fsy[Nx-2,:]
+    fsy[:,Ny] = fsy[:,Ny-1] = fsy[:,Ny-2]
 
-    fsy[1,:] = fsy[:,1] = 0
-    gsx[1,:] = gsx[:,1] = 0
+    gsx[1,:]  = gsx[2,:]    = gsx[3,:]
+    gsx[:,1]  = gsx[:,2]    = gsx[:,3]
+    gsx[Nx,:] = gsx[Nx-1,:] = gsx[Nx-2,:]
+    gsx[:,Ny] = gsx[:,Ny-1] = gsx[:,Ny-2]
 
-    fsy[Nx,:] = fsy[:,Ny] = 0
-    gsx[Nx,:] = gsx[:,Ny] = 0
+
+   #for i = 2:Nx-1
+   #    fsy[i,NBnd-1] = fsy[i,NBnd]
+   #    fsy[i,Ny-NBnd+1] = fsy[i,Ny]
+   #end
+
+   #@inbounds @simd for i = 2:Nx-1
+   #    gsx[i,2] = gsx[i,NBnd]
+   #    gsx[i,Ny-NBnd+1] = gsx[i,Ny]
+   #end
+
+   fsy[1,:] = fsy[:,1] = 0
+   gsx[1,:] = gsx[:,1] = 0
+
+   fsy[Nx,:] = fsy[:,Ny] = 0
+   gsx[Nx,:] = gsx[:,Ny] = 0
 
     return
 end
@@ -1151,103 +1758,108 @@ function S2E(qS::Array{Float64,3})
 	return E # Ryu+ 1993, eq. 2.3+1
 end
 
-function weno5_interpolation(q::Array{Float64,2}, a::Array{Float64,2},
-							 F::Array{Float64,2}, L::Array{Float64,3},
-							 R::Array{Float64,3},j)
-    N = size(q,1)
-
-	dF = zeros(Float64, N, 7)
-
-	@inbounds for i = NBnd:N-NBnd
-		
-    	Fs = zeros(Float64, 7)
-	    Fsk = zeros(Float64, 6)
-    	qsk = zeros(Float64, 6)
-	    dFsk = zeros(Float64, 5)
-    	dqsk = zeros(Float64, 5)
-
-		@inbounds for m=1:7
-
-			@inbounds for ks=1:6 # stencil i-2 -> i+3 : 5th order
-
-				Fsk[ks] = L[i,m,1]*F[i-3+ks,1] + L[i,m,2]*F[i-3+ks,2] +
-                     	  L[i,m,3]*F[i-3+ks,3] + L[i,m,4]*F[i-3+ks,4] +
-                     	  L[i,m,5]*F[i-3+ks,5] + L[i,m,6]*F[i-3+ks,6] +
-                     	  L[i,m,7]*F[i-3+ks,7]                     
-                                                                   
-            	qsk[ks] = L[i,m,1]*q[i-3+ks,1] + L[i,m,2]*q[i-3+ks,2] +
-                     	  L[i,m,3]*q[i-3+ks,3] + L[i,m,4]*q[i-3+ks,4] +
-                     	  L[i,m,5]*q[i-3+ks,6] + L[i,m,6]*q[i-3+ks,7] +
-                     	  L[i,m,7]*q[i-3+ks,8]
-			end # ks
-
-			first = (-Fsk[2]+7.0*Fsk[3]+7.0*Fsk[4]-Fsk[5]) / 12.0 # J&W eq 2.11
-
-			for ks=1:5
-				dFsk[ks] = Fsk[ks+1] - Fsk[ks]
-				dqsk[ks] = qsk[ks+1] - qsk[ks]
-			end
-
-			amax = max(abs(a[i,m]),abs(a[i+1,m])) # J&W eq 2.10
-
-			aterm = 0.5 * (dFsk[1] + amax*dqsk[1]) # Lax-Friedrichs J&W eq. 2.10 & 2.16+
-            bterm = 0.5 * (dFsk[2] + amax*dqsk[2])
-            cterm = 0.5 * (dFsk[3] + amax*dqsk[3])
-            dterm = 0.5 * (dFsk[4] + amax*dqsk[4])
-
-            IS0 = 13.0*(aterm-bterm)^2 + 3.0*(aterm-3.0*bterm)^2
-            IS1 = 13.0*(bterm-cterm)^2 + 3.0*(bterm+cterm)^2
-            IS2 = 13.0*(cterm-dterm)^2 + 3.0*(3.0*cterm-dterm)^2
-
-            alpha0 = 1.0/(eps+IS0)^2
-            alpha1 = 6.0/(eps+IS1)^2
-            alpha2 = 3.0/(eps+IS2)^2
-
-            omega0 = alpha0/(alpha0+alpha1+alpha2)
-            omega2 = alpha2/(alpha0+alpha1+alpha2)
-
-            second = omega0*(aterm - 2*bterm + cterm)/3 + # phi_N(f+), J&W eq 2.3 + 1
-                  	(omega2-0.5)*(bterm - 2*cterm + dterm)/6
-
-            aterm = 0.5 * (dFsk[5] - amax*dqsk[5]) # Lax-Friedrichs J&W eq. 2.10 & 2.16+
-            bterm = 0.5 * (dFsk[4] - amax*dqsk[4])
-            cterm = 0.5 * (dFsk[3] - amax*dqsk[3])  
-            dterm = 0.5 * (dFsk[2] - amax*dqsk[2])
-
-            IS0 = 13.0*(aterm-bterm)^2 + 3.0*(aterm - 3.0*bterm)^2
-            IS1 = 13.0*(bterm-cterm)^2 + 3.0*(bterm + cterm)^2
-            IS2 = 13.0*(cterm-dterm)^2 + 3.0*(3.0*cterm - dterm)^2
-
-            alpha0 = 1.0/(eps + IS0)^2
-            alpha1 = 6.0/(eps + IS1)^2
-            alpha2 = 3.0/(eps + IS2)^2
-
-            omega0 = alpha0/(alpha0 + alpha1 + alpha2)
-            omega2 = alpha2/(alpha0 + alpha1 + alpha2)
-
-            third  = omega0*(aterm - 2.0*bterm + cterm) / 3.0 +	# phi_N(f-)
-                    (omega2 - 0.5)*(bterm - 2.0*cterm + dterm) / 6.0
-
-            Fs[m] = first - second + third # J&W eq. 2.16 + 1
-
-		end # m
-	
-		for m = 1:7
-			
-			dF[i,m] = Fs[1]*R[i,m,1] + Fs[2]*R[i,m,2] + # J&W eq. 2.17
-                   	  Fs[3]*R[i,m,3] + Fs[4]*R[i,m,4] +
-                      Fs[5]*R[i,m,5] + Fs[6]*R[i,m,6] +
-                      Fs[7]*R[i,m,7] 
-		end
+function weno5_interpolation(q::Array{Float64,3}, a::Array{Float64,3},
+							 F::Array{Float64,3}, L::Array{Float64,4},
+							 R::Array{Float64,4})
+    const Nqx = size(q,1)
+    const Nqy = size(q,2)
  
-	end # i
+    Fs = zeros(Float64, Nqx, Nqy, 7)
+
+    Fsk = zeros(Float64, 6)
+    qsk = zeros(Float64, 6)
+    dFsk = zeros(Float64, 5)
+    dqsk = zeros(Float64, 5)
+
+	dF = zeros(Float64, Nqx, Nqy, 7)
+
+    @inbounds for m = 1:7
+	    @inbounds for j = NBnd:Nqy
+	        @inbounds @simd for i = NBnd:Nqx
+
+    			@inbounds for ks = 1:6 # stencil i-2 -> i+3 : 5th order
+
+    				Fsk[ks] = L[i,j,m,1]*F[i-3+ks,j,1] + L[i,j,m,2]*F[i-3+ks,j,2] +
+                         	  L[i,j,m,3]*F[i-3+ks,j,3] + L[i,j,m,4]*F[i-3+ks,j,4] +
+                         	  L[i,j,m,5]*F[i-3+ks,j,5] + L[i,j,m,6]*F[i-3+ks,j,6] +
+                         	  L[i,j,m,7]*F[i-3+ks,j,7]                     
+                                                                   
+                	qsk[ks] = L[i,j,m,1]*q[i-3+ks,j,1] + L[i,j,m,2]*q[i-3+ks,j,2] +
+                         	  L[i,j,m,3]*q[i-3+ks,j,3] + L[i,j,m,4]*q[i-3+ks,j,4] +
+                         	  L[i,j,m,5]*q[i-3+ks,j,6] + L[i,j,m,6]*q[i-3+ks,j,7] +
+                         	  L[i,j,m,7]*q[i-3+ks,j,8]
+    			end # ks
+
+    			first = (-Fsk[2]+7.0*Fsk[3]+7.0*Fsk[4]-Fsk[5]) / 12.0 # J&W eq 2.11
+
+    			for ks = 1:5
+    				dFsk[ks] = Fsk[ks+1] - Fsk[ks]
+    				dqsk[ks] = qsk[ks+1] - qsk[ks]
+    			end
+
+    			amax = max(abs(a[i,j,m]),abs(a[i+1,j,m])) # J&W eq 2.10
+
+    			aterm = 0.5 * (dFsk[1] + amax*dqsk[1]) # Lax-Friedrichs J&W eq. 2.10 & 2.16+
+                bterm = 0.5 * (dFsk[2] + amax*dqsk[2])
+                cterm = 0.5 * (dFsk[3] + amax*dqsk[3])
+                dterm = 0.5 * (dFsk[4] + amax*dqsk[4])
+
+                IS0 = 13.0*(aterm-bterm)^2 + 3.0*(aterm-3.0*bterm)^2
+                IS1 = 13.0*(bterm-cterm)^2 + 3.0*(bterm+cterm)^2
+                IS2 = 13.0*(cterm-dterm)^2 + 3.0*(3.0*cterm-dterm)^2
+
+                alpha0 = 1.0/(eps+IS0)^2
+                alpha1 = 6.0/(eps+IS1)^2
+                alpha2 = 3.0/(eps+IS2)^2
+
+                omega0 = alpha0/(alpha0+alpha1+alpha2)
+                omega2 = alpha2/(alpha0+alpha1+alpha2)
+
+                second = omega0*(aterm - 2*bterm + cterm)/3 + # phi_N(f+), J&W eq 2.3 + 1
+                  	    (omega2-0.5)*(bterm - 2*cterm + dterm)/6
+
+                aterm = 0.5 * (dFsk[5] - amax*dqsk[5]) # Lax-Friedrichs J&W eq. 2.10 & 2.16+
+                bterm = 0.5 * (dFsk[4] - amax*dqsk[4])
+                cterm = 0.5 * (dFsk[3] - amax*dqsk[3])  
+                dterm = 0.5 * (dFsk[2] - amax*dqsk[2])
+
+                IS0 = 13.0*(aterm-bterm)^2 + 3.0*(aterm - 3.0*bterm)^2
+                IS1 = 13.0*(bterm-cterm)^2 + 3.0*(bterm + cterm)^2
+                IS2 = 13.0*(cterm-dterm)^2 + 3.0*(3.0*cterm - dterm)^2
+
+                alpha0 = 1.0/(eps + IS0)^2
+                alpha1 = 6.0/(eps + IS1)^2
+                alpha2 = 3.0/(eps + IS2)^2
+
+                omega0 = alpha0/(alpha0 + alpha1 + alpha2)
+                omega2 = alpha2/(alpha0 + alpha1 + alpha2)
+
+                third  = omega0*(aterm - 2.0*bterm + cterm) / 3.0 +	# phi_N(f-)
+                        (omega2 - 0.5)*(bterm - 2.0*cterm + dterm) / 6.0
+
+                Fs[i,j,m] = first - second + third # J&W eq. 2.16 + 1
+
+		    end # i
+	    end # j
+	end # m
+
+    @inbounds for m = 1:7
+	    @inbounds for j = NBnd:Nqy
+	        @inbounds @simd for i = NBnd:Nqx
+                dF[i,j,m] = Fs[i,j,1]*R[i,j,m,1] + Fs[i,j,2]*R[i,j,m,2] + # J&W eq. 2.17
+        	                Fs[i,j,3]*R[i,j,m,3] + Fs[i,j,4]*R[i,j,m,4] +
+                            Fs[i,j,5]*R[i,j,m,5] + Fs[i,j,6]*R[i,j,m,6] +
+                            Fs[i,j,7]*R[i,j,m,7] 
+            end
+        end
+     end
 
 	return dF
 end # weno5_interpolation()
 
 function rotate_state(q::Array{Float64,3}, direction::String)
 
-    p = SharedArray{Float64}(size(q,2),size(q,1),8) * 0
+    p = Array{Float64}(size(q,2),size(q,1),8)
 
     if direction == "fwd"
 
@@ -1295,8 +1907,8 @@ function compute_global_vmax(q::Array{Float64,3})
     vxmax = SharedArray{Float64}(Nx, Ny)
     vymax = SharedArray{Float64}(Nx, Ny)
 
-    @sync @parallel for j = jMin:jMax # Jiang & Wu after eq 2.24
-		@inbounds @simd for i = iMin:iMax
+    @inbounds for j = jMin:jMax # Jiang & Wu after eq 2.24
+		@inbounds for i = iMin:iMax
 			
 			rho = (q[i,j,1] + q[i+1,j,1])/2
            
@@ -1334,14 +1946,14 @@ function compute_global_vmax(q::Array{Float64,3})
 	return maximum(vxmax), maximum(vymax)
 end
 
-function compute_divB(bxb, byb)
+function compute_divB(bxb::Array{Float64,2}, byb::Array{Float64,2})
 
-    divB = 0.0
+    divB = similar(bxb) * 0
 
     @inbounds for j=NBnd:Ny-NBnd
         @inbounds @simd for i=NBnd:Nx-NBnd
         
-            divB += (bxb[i,j]-bxb[i-1,j])/dx + (byb[i,j]-byb[i,j-1])/dy
+            divB[i,j] += (bxb[i,j]-bxb[i-1,j])/dx + (byb[i,j]-byb[i,j-1])/dy
 
         end
     end
@@ -1358,7 +1970,7 @@ function initial_conditions() # Shock Cloud interaction
 
 	# state variables left & right
 	#        rho      vx    vy vz Bx        By      Bz    Press
-	sl = [2.11820, 13.69836, 0, 0, 0, 19.33647, 19.33647, 65.8881]
+	sl = [2.11820, 13.69836, 0, 0, 0, 19.33647, 19.33647, 65.88816]
 	sr = [      1,        0, 0, 0, 0,  9.12871, 9.12871,      1.0]
 
 	for j = 1:Ny
@@ -1425,20 +2037,20 @@ function printq(q::Array{Float64,3}, bxb::Array{Float64,2}, byb::Array{Float64,2
         end
     end
         
-    for i=1:length(bxb)
-        if abs(bxb[i]) < 1e-12
-            bxb[i] = 0
-        end
-        if abs(byb[i]) < 1e-12
-            byb[i] = 0
-        end
-        if abs(fsy[i]) < 1e-12
-            fsy[i] = 0
-        end
-        if abs(gsx[i]) < 1e-12
-            gsx[i] = 0
-        end
-    end
+   #for i=1:length(bxb)
+   #    if abs(bxb[i]) < 1e-12
+   #        bxb[i] = 0
+   #    end
+   #    if abs(byb[i]) < 1e-12
+   #        byb[i] = 0
+   #    end
+   #    if abs(fsy[i]) < 1e-12
+   #        fsy[i] = 0
+   #    end
+   #    if abs(gsx[i]) < 1e-12
+   #        gsx[i] = 0
+   #    end
+   #end
 
     for i=1:length(xidx)
         
