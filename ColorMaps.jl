@@ -89,10 +89,8 @@ and type definitions.
 	cmap = ColMap(1)
 	img = Arr2Img(arr, cmap; range=[1, 10], log=false, sqrt=false)
 """
-function Arr2Img(arr::Array, cmap::Array; range=[0,0], log=false, sqrt=false)
+function Arr2Img(arr::Array{<:Real,2}, cmap::Array; range=[0,0], log=false, sqrt=false)
 
-	@assert(ndims(arr) == 2, "Input array must be 2D")
-	
 	img = transpose(arr)  # correct alignment
 
     if log == true

@@ -87,7 +87,7 @@ function Set(name::AbstractString)
 				g = ColorTypes.green(colors[i,1])
 				b = ColorTypes.blue(colors[i,1])
 
-				rgb = floor(Int16, [r,g,b]*255)
+				rgb = floor.(Int16, [r,g,b]*255)
 			
 				PGFPlots.define_color(ct_name, rgb)
 			end
@@ -107,7 +107,7 @@ function Set(name::AbstractString)
 				g = ColorTypes.green(colors[i,1])
 				b = ColorTypes.blue(colors[i,1])
 
-				rgb = floor(Int16, [r,g,b]*255)
+				rgb = floor.(Int16, [r,g,b]*255)
 			
 				PGFPlots.define_color(ct_name, rgb)
 			end
@@ -127,7 +127,7 @@ function Set(name::AbstractString)
 				g = ColorTypes.green(colors[i,1])
 				b = ColorTypes.blue(colors[i,1])
 
-				rgb = floor(Int16, [r,g,b]*255)
+				rgb = floor.(Int16, [r,g,b]*255)
 			
 				PGFPlots.define_color(ct_name, rgb)
 			end
