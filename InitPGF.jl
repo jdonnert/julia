@@ -1,4 +1,7 @@
 module InitPGF
+"""
+Setup PGFPlots to produce _very_ beautiful plots. This beats matplotlib easily.
+"""
 
 importall PGFPlots
 import ColorPGF

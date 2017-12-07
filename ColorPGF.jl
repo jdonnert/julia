@@ -1,5 +1,5 @@
 """
-We make the Brewer Colors available to PGFPlots Plot.Linear.
+We make the Brewer Colors available to PGFPlots.
 the colors are available as name+number: 
 	p = Plots.Linear(x,y, style="PuBu4")
 Sets color 4 from the sequential PuBu map.
@@ -31,8 +31,8 @@ function InitPGF()
 
 	pushPGFPlotsPreamble("\\pgfplotsset{width=10.5cm, height=7.4cm,
 					 every axis legend/.append style={draw=none},
-					 every axis/.append style={thick, grid=major, tick
-					 style={thick}, grid style={very thin}},
+					 every axis/.append style={thick,grid=major,
+                     tick style={thick}, grid style={very thin}},
 					 tick label style={font=\\large},
    					 label style={font=\\large},
    	 				 legend style={font=\\small}}")
@@ -66,7 +66,7 @@ function Set(name::AbstractString)
 			g = ColorTypes.green(colors[i,1])
 			b = ColorTypes.blue(colors[i,1])
 
-			rgb = floor(Int16, [r,g,b]*255) # convert FixedPointFloat to Integer
+			rgb = floor.(Int16, [r,g,b]*255) # convert FixedPointFloat to Integer
 			
 			PGFPlots.define_color(ct_name, rgb) # set nCol LaTeX colors
 		end

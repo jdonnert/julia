@@ -19,7 +19,11 @@ function aminmax(data::Array)
 
 	good = isfinite.(data)
 
-	return minimum(data[good]), maximum(data[good])
+    if length(good) > 1
+	    return minimum(data[good]), maximum(data[good])
+    else
+        return (NaN,NaN)
+    end
 end
 
 """
@@ -27,7 +31,13 @@ Return  the minimum of the input array. Works on arrays with missing data.
 """
 function amin(data::Array)
 
-	return minimum(data[isfinite.(data)])
+    good = isfinite.(data)
+
+    if length(good) > 1
+    	return minimum(data[isfinite.(data)])
+    else
+        return NaN
+    end
 end
 
 """

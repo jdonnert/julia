@@ -30,7 +30,7 @@ function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 	N = length(arr)
 
 	if pos == -1
-        pos = Array(linspace(1, N, N))
+		pos = linspace(1, N, N)
 	else
 		@assert(N == size(pos,1), "Length of data != length of positions")
 	end
@@ -95,7 +95,7 @@ function BinArray(arr::Array; pos=-1, bins=-1, log=false, nbins=0)
 	return val, bin_pos, cnt
 end
 
-function clean_data(arr::Array{<:Real,1}, pos::Array{<:Real,1}, N::Integer)
+function clean_data(arr::Array, pos::Array, N::Integer)
 
 	good = find(isfinite(arr))
 	

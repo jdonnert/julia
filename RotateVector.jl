@@ -6,7 +6,7 @@ export rotation_matrix_YPR3D, rotation_matrix_EulerAng
 """
 Rotation matrix of Luftfahrtnorm (DIN 9300) (Yaw-Pitch-Roll, Z, Y’, X’’)
 
-    function rotation_matrix_YPR3D(psi::Real, phi::Real, theta::Real; elType=Float64)
+    function rotation_matrix_YPR3D(psi::Real, theta::Real, phi::Real; elType=Float64)
 
 psi first rotates around z-axis
 theta then rotates around the new y-axis
@@ -21,7 +21,7 @@ Rotate a vector with
 
 See Wikipedia
 """
-function rotation_matrix_YPR3D(psi::Real, phi::Real, theta::Real; elType=Float64)
+function rotation_matrix_YPR3D(psi::Real, theta::Real, phi::Real; elType=Float64)
 
     M = Array{elType}(3,3)
     
