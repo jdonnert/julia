@@ -1,4 +1,4 @@
-# julia - An Amazing Program
+# Julia - An Amazing Program
 
 This repository contains julia modules for working with Wombat-2 cluster simulations, plotting and
 image production.
